@@ -45,6 +45,7 @@ func usage() -> String {
       gander [instance] prev
       gander [instance] open <url> [--x n --y n --width n --height n]
       gander [instance] frame --x n --y n --width n --height n
+      gander [instance] menubar
     """
 }
 
@@ -101,7 +102,7 @@ func parseURLAndFrame(_ args: [String], requiresURL: Bool) -> (String?, FrameOpt
     return (url, frame)
 }
 
-let knownCommands = ["toggle", "show", "hide", "sites", "next", "prev", "open", "frame"]
+let knownCommands = ["toggle", "show", "hide", "sites", "next", "prev", "open", "frame", "menubar"]
 var args = Array(CommandLine.arguments.dropFirst())
 
 let instanceName: String
@@ -148,6 +149,8 @@ case "frame":
     }
     nc.postNotificationName(.init("\(prefix).frame"), object: nil,
                             userInfo: frame.asUserInfo(), deliverImmediately: true)
+case "menubar":
+    nc.postNotificationName(.init("\(prefix).menubar"), object: nil, deliverImmediately: true)
 default:
     fputs("gander: unknown command '\(command)'\n\(usage())\n", stderr)
     exit(1)

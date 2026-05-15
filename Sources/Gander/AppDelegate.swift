@@ -1,5 +1,6 @@
 import AppKit
 import Carbon
+import ServiceManagement
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     let config: AppConfig
@@ -46,7 +47,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         panel = SidebarPanel(config: config)
-        setupMenuBar()
+        if !UserDefaults.standard.bool(forKey: "hideMenuBarIcon.\(config.name)") {
+            setupMenuBar()
+        }
         setupGlobalHotkeys()
         setupIPC()
         setupURLScheme()
@@ -63,20 +66,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         btn.target = self
 
         let menu = NSMenu()
+        menu.delegate = self
         let title = config.name == "default" ? "Gander" : "Gander — \(config.name)"
-        let items: [(String, Selector)] = [
-            ("\(title)  ⌘⇧\\", #selector(togglePanel)),
-            ("Sites…  ⌘⇧/",    #selector(openSitePicker)),
-        ]
-        for (t, sel) in items {
-            let item = NSMenuItem(title: t, action: sel, keyEquivalent: "")
-            item.target = self
-            menu.addItem(item)
+
+        func item(_ t: String, _ sel: Selector, tag: Int = 0) -> NSMenuItem {
+            let i = NSMenuItem(title: t, action: sel, keyEquivalent: "")
+            i.target = self
+            i.tag = tag
+            return i
         }
+
+        menu.addItem(item("\(title)  ⌘⇧\\", #selector(togglePanel)))
+        menu.addItem(item("Sites…  ⌘⇧/",    #selector(openSitePicker)))
         menu.addItem(.separator())
-        let helpItem = NSMenuItem(title: "Help", action: #selector(showHelp), keyEquivalent: "")
-        helpItem.target = self
-        menu.addItem(helpItem)
+        menu.addItem(item("Open at Login",        #selector(toggleLaunchAtLogin),      tag: 101))
+        menu.addItem(item("Hide Menu Bar Icon…",  #selector(confirmHideMenuBarIcon)))
+        menu.addItem(.separator())
+        menu.addItem(item("Help", #selector(showHelp)))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem?.menu = menu
@@ -84,6 +90,57 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func togglePanel()    { panel?.toggle() }
     @objc func openSitePicker() { panel?.toggleSitePicker() }
+
+    @objc private func toggleLaunchAtLogin() {
+        let service = SMAppService.mainApp
+        do {
+            if service.status == .enabled {
+                try service.unregister()
+            } else {
+                try service.register()
+            }
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Could not update Login Item"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
+        }
+    }
+
+    @objc private func confirmHideMenuBarIcon() {
+        let hotkey = prettyHotkey(config.hotkeys.toggle)
+        let alert = NSAlert()
+        alert.messageText = "Hide Menu Bar Icon?"
+        alert.informativeText = """
+            The Gander icon will be removed from the menu bar.
+
+            You can still use \(hotkey) to show or hide the sidebar. To restore the icon at any time, run:
+                gander menubar
+            """
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Hide Icon")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        UserDefaults.standard.set(true, forKey: "hideMenuBarIcon.\(config.name)")
+        if let item = statusItem {
+            NSStatusBar.system.removeStatusItem(item)
+            statusItem = nil
+        }
+    }
+
+    private func restoreMenuBarIcon() {
+        UserDefaults.standard.set(false, forKey: "hideMenuBarIcon.\(config.name)")
+        if statusItem == nil { setupMenuBar() }
+    }
+
+    private func prettyHotkey(_ spec: String?) -> String {
+        guard let spec else { return "your keyboard shortcut" }
+        var s = spec
+        for (word, sym) in [("command","⌘"),("cmd","⌘"),("shift","⇧"),("option","⌥"),("alt","⌥"),("ctrl","⌃"),("control","⌃")] {
+            s = s.replacingOccurrences(of: word, with: sym, options: .caseInsensitive)
+        }
+        return s.replacingOccurrences(of: "+", with: "")
+    }
 
     @objc func showHelp() {
         let name = config.name == "default" ? "default" : config.name
@@ -214,14 +271,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupIPC() {
         let nc = DistributedNotificationCenter.default()
-        nc.addObserver(self, selector: #selector(ipcToggle),    name: config.notifToggle, object: nil)
-        nc.addObserver(self, selector: #selector(ipcShow(_:)),   name: config.notifShow,   object: nil)
-        nc.addObserver(self, selector: #selector(ipcHide),      name: config.notifHide,   object: nil)
-        nc.addObserver(self, selector: #selector(ipcOpen(_:)),  name: config.notifOpen,   object: nil)
-        nc.addObserver(self, selector: #selector(ipcFrame(_:)), name: config.notifFrame,  object: nil)
-        nc.addObserver(self, selector: #selector(ipcSites),     name: config.notifSites,  object: nil)
-        nc.addObserver(self, selector: #selector(ipcNext),      name: config.notifNext,   object: nil)
-        nc.addObserver(self, selector: #selector(ipcPrev),      name: config.notifPrev,   object: nil)
+        nc.addObserver(self, selector: #selector(ipcToggle),    name: config.notifToggle,   object: nil)
+        nc.addObserver(self, selector: #selector(ipcShow(_:)),  name: config.notifShow,     object: nil)
+        nc.addObserver(self, selector: #selector(ipcHide),      name: config.notifHide,     object: nil)
+        nc.addObserver(self, selector: #selector(ipcOpen(_:)),  name: config.notifOpen,     object: nil)
+        nc.addObserver(self, selector: #selector(ipcFrame(_:)), name: config.notifFrame,    object: nil)
+        nc.addObserver(self, selector: #selector(ipcSites),     name: config.notifSites,    object: nil)
+        nc.addObserver(self, selector: #selector(ipcNext),      name: config.notifNext,     object: nil)
+        nc.addObserver(self, selector: #selector(ipcPrev),      name: config.notifPrev,     object: nil)
+        nc.addObserver(self, selector: #selector(ipcMenuBar),   name: config.notifMenuBar,  object: nil)
     }
 
     @objc private func ipcToggle()                { panel?.toggle() }
@@ -242,6 +300,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func ipcFrame(_ n: Notification) {
         panel?.applyFrame(frameConfig(from: n.userInfo))
     }
+    @objc private func ipcMenuBar() { restoreMenuBarIcon() }
 
     // MARK: URL scheme  gander://
     //
@@ -289,6 +348,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         case "frame":
             panel?.applyFrame(frameConfig(from: URLComponents(url: url, resolvingAgainstBaseURL: false)))
         default: break
+        }
+    }
+}
+
+extension AppDelegate: NSMenuDelegate {
+    func menuWillOpen(_ menu: NSMenu) {
+        if let item = menu.item(withTag: 101) {
+            item.state = SMAppService.mainApp.status == .enabled ? .on : .off
         }
     }
 }

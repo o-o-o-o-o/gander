@@ -135,8 +135,9 @@ struct AppConfig: Codable {
     var notifOpen:   Notification.Name { .init("com.gander.\(name).open") }
     var notifFrame:  Notification.Name { .init("com.gander.\(name).frame") }
     var notifSites:  Notification.Name { .init("com.gander.\(name).sites") }
-    var notifNext:   Notification.Name { .init("com.gander.\(name).next") }
-    var notifPrev:   Notification.Name { .init("com.gander.\(name).prev") }
+    var notifNext:    Notification.Name { .init("com.gander.\(name).next") }
+    var notifPrev:    Notification.Name { .init("com.gander.\(name).prev") }
+    var notifMenuBar: Notification.Name { .init("com.gander.\(name).menubar") }
 
     func initialFrame(on screen: NSScreen) -> NSRect {
         let visible = screen.visibleFrame
