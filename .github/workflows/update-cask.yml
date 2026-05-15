@@ -1,0 +1,52 @@
+name: Update Homebrew Cask
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag to update Cask to (e.g., v0.2.0)"
+        required: true
+
+jobs:
+  update-cask:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get release info
+        id: release
+        run: |
+          VERSION="${{ github.event.release.tag_name || github.event.inputs.version }}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "url=https://github.com/${{ github.repository }}/releases/download/${VERSION}/Gander-${VERSION}.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Calculate SHA256
+        id: sha
+        run: |
+          curl -sL "${{ steps.release.outputs.url }}" -o Gander.zip
+          echo "sha256=$(sha256sum Gander.zip | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Update Cask
+        run: |
+          VERSION="${{ steps.release.outputs.version }}"
+          sed -i "s/  version \".*\"/  version \"${VERSION#v}\"/" Cask/gander.rb
+          sed -i "s/  sha256 \".*\"/  sha256 \"${{ steps.sha.outputs.sha256 }}\"/" Cask/gander.rb
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "Update Cask to ${{ steps.release.outputs.version }}"
+          title: "Update Cask to ${{ steps.release.outputs.version }}"
+          body: |
+            Automated Cask update for release ${{ steps.release.outputs.version }}.
+
+            - URL: ${{ steps.release.outputs.url }}
+            - SHA256: ${{ steps.sha.outputs.sha256 }}
+          branch: update-cask-${{ steps.release.outputs.version }}
+          delete-branch: true
