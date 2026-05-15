@@ -4,3 +4,4 @@ SidebarBrowser.app/
 Gander-v*.zip
 *.o
 .DS_Store
+.claude/
