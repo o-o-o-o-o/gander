@@ -81,12 +81,23 @@ if let tiff = outImg.tiffRepresentation,
 SWIFT
 
 # ── .app bundle ───────────────────────────────────────────────────────────────
+BIN_DIR=$(swift build -c release --show-bin-path)
+APP_BIN="${BIN_DIR}/GanderApp"
+CLI_BIN="${BIN_DIR}/gander"
+
+# Sanity check: app binary must reference NSApplication
+if ! strings "$APP_BIN" | grep -q "NSApplication"; then
+    echo "❌ ${APP_BIN} does not look like the app binary (no NSApplication)" >&2
+    echo "   Found: $(strings "$APP_BIN" | head -3)" >&2
+    exit 1
+fi
+
 rm -rf Gander.app
 APP="Gander.app/Contents"
 mkdir -p "$APP/MacOS" "$APP/Resources"
 
-cp .build/release/GanderApp "$APP/MacOS/Gander"
-cp .build/release/gander    "$APP/MacOS/gander"
+cp "$APP_BIN" "$APP/MacOS/Gander"
+cp "$CLI_BIN" "$APP/MacOS/gander"
 cp /tmp/Gander.icns          "$APP/Resources/AppIcon.icns"
 cp /tmp/greg_template.png    "$APP/Resources/greg.png"
 
