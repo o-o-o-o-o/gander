@@ -106,23 +106,6 @@ cat > "$APP/Info.plist" << 'PLIST'
 </dict></plist>
 PLIST
 
-# Register URL scheme with Launch Services
-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
-    -f "$(pwd)/Gander.app"
-
-echo "✓ Gander.app built and registered"
-
-# ── Install to /Applications ─────────────────────────────────────────────────
-rm -rf /Applications/Gander.app
-cp -r Gander.app /Applications/Gander.app
-echo "✓ Gander.app installed to /Applications"
-
-# ── CLI tool ──────────────────────────────────────────────────────────────────
-INSTALL_DIR="/usr/local/bin"
-if [ -w "$INSTALL_DIR" ]; then
-    cp .build/release/gander "$INSTALL_DIR/gander"
-    echo "✓ gander installed to $INSTALL_DIR/gander"
-else
-    echo "  gander binary is at: $(pwd)/.build/release/gander"
-    echo "  To install: sudo cp .build/release/gander /usr/local/bin/gander"
-fi
+echo "✓ Gander.app built"
+echo "  To test: open Gander.app"
+echo "  To install locally: make install"

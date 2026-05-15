@@ -47,8 +47,8 @@ else
 fi
 
 if [ "$OPEN_APP" = true ]; then
-    echo "==> Opening /Applications/Gander.app"
-    open /Applications/Gander.app
+    echo "==> Opening Gander.app"
+    open Gander.app
 fi
 
 echo "==> Done"

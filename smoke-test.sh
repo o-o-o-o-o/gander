@@ -7,7 +7,6 @@ INSTANCE_NAME="smoke-$RANDOM-$RANDOM"
 TMP_DIR="$(mktemp -d /tmp/gander-smoke.XXXXXX)"
 CONFIG_PATH="$TMP_DIR/$INSTANCE_NAME.json"
 APP_PID=""
-INSTALLED_APP_PATTERN="/Applications/Gander.app/Contents/MacOS/Gander"
 
 cleanup() {
     if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
@@ -75,37 +74,9 @@ if ! kill -0 "$APP_PID" 2>/dev/null; then
     exit 1
 fi
 
-if [ ! -d "/Applications/Gander.app" ]; then
-    echo "Expected /Applications/Gander.app after publish" >&2
+if [ ! -f "Gander.app/Contents/Resources/greg.png" ]; then
+    echo "Expected processed menubar icon inside app bundle" >&2
     exit 1
 fi
-
-if [ ! -f "/Applications/Gander.app/Contents/Resources/greg.png" ]; then
-    echo "Expected processed menubar icon inside installed app bundle" >&2
-    exit 1
-fi
-
-echo "==> Exercising installed app URL scheme"
-open -g "gander://show?width=405&height=690"
-
-URL_SCHEME_OK=false
-for _ in {1..20}; do
-    if pgrep -f "$INSTALLED_APP_PATTERN" >/dev/null 2>&1; then
-        URL_SCHEME_OK=true
-        break
-    fi
-    sleep 0.2
-done
-
-if [ "$URL_SCHEME_OK" != true ]; then
-    echo "Expected installed app process after gander://show" >&2
-    exit 1
-fi
-
-open -g "gander://toggle"
-sleep 0.2
-open -g "gander://toggle"
-sleep 0.2
-open -g "gander://hide"
 
 echo "==> Smoke test passed"
