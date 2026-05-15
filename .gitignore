@@ -1,0 +1,6 @@
+.build/
+Gander.app/
+SidebarBrowser.app/
+Gander-v*.zip
+*.o
+.DS_Store
