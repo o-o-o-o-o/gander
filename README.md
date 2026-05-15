@@ -1,9 +1,10 @@
 # 🪿 Gander
 
 *Gander* as in "to take a gander" — a glimpse, a glance, a peek.
+
 *Gander* as in a goose.
 
-A floatable, hot key-able, native sidebar browser (NSPanel + WKWebView) that persists across all spaces (mac native and aerospace-like wiondow managers).
+A floatable, hot key-able, native sidebar browser (NSPanel + WKWebView) that persists across all spaces (mac native and aerospace-like window managers).
 
 ---
 
