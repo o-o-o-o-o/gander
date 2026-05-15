@@ -4,7 +4,8 @@ cd "$(dirname "$0")/.."
 
 VERSION="${1:?Usage: build-release.sh <version>}"
 
-swift build -c release
+swift build -c release --product GanderApp
+swift build -c release --product gander
 
 # ── App icon ─────────────────────────────────────────────────────────────────
 ICONSET=/tmp/Gander.iconset
@@ -85,12 +86,18 @@ BIN_DIR=$(swift build -c release --show-bin-path)
 APP_BIN="${BIN_DIR}/GanderApp"
 CLI_BIN="${BIN_DIR}/gander"
 
-# Sanity check: app binary must reference NSApplication
-if ! strings "$APP_BIN" | grep -q "NSApplication"; then
-    echo "❌ ${APP_BIN} does not look like the app binary (no NSApplication)" >&2
-    echo "   Found: $(strings "$APP_BIN" | head -3)" >&2
+# Diagnostics: print sizes so CI logs show what was actually built
+echo "  GanderApp: $(wc -c < "$APP_BIN" | tr -d ' ') bytes at $APP_BIN"
+echo "  gander:    $(wc -c < "$CLI_BIN" | tr -d ' ') bytes at $CLI_BIN"
+
+# Sanity check: app binary must contain AppDelegate (only in the app target)
+if ! nm "$APP_BIN" 2>/dev/null | grep -q "AppDelegate"; then
+    echo "❌ $APP_BIN does not look like the app binary (no AppDelegate symbol)" >&2
+    echo "   nm output (first 10 lines):" >&2
+    nm "$APP_BIN" 2>/dev/null | head -10 >&2
     exit 1
 fi
+echo "  ✓ app binary verified (AppDelegate present)"
 
 rm -rf Gander.app
 APP="Gander.app/Contents"
