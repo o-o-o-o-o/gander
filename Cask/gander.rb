@@ -3,7 +3,7 @@
 
 cask "gander" do
   version "0.1.0"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  sha256 "106119e74fecd603b4b694033efa45aa80f0b65e6af51bdab5b47cdd54d9c7b7"
 
   url "https://github.com/o-o-o-o-o/gander/releases/download/v#{version}/Gander-v#{version}.zip"
   name "Gander"
