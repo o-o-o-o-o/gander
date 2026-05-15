@@ -104,7 +104,7 @@ APP="Gander.app/Contents"
 mkdir -p "$APP/MacOS" "$APP/Resources"
 
 cp "$APP_BIN" "$APP/MacOS/Gander"
-cp "$CLI_BIN" "$APP/MacOS/gander"
+cp "$CLI_BIN" "$APP/MacOS/gander-cli"
 cp /tmp/Gander.icns          "$APP/Resources/AppIcon.icns"
 cp /tmp/greg_template.png    "$APP/Resources/greg.png"
 

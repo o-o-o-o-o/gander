@@ -11,16 +11,12 @@ cask "gander" do
   homepage "https://github.com/o-o-o-o-o/gander"
 
   app "Gander.app"
-  binary "#{appdir}/Gander.app/Contents/MacOS/gander"
+  binary "#{appdir}/Gander.app/Contents/MacOS/gander-cli", target: "gander"
 
   caveats <<~EOS
     Gander is not signed with an Apple Developer certificate.
     On first launch macOS may block it. If that happens, run:
       xattr -dr com.apple.quarantine /Applications/Gander.app
-
-    Alternatively, install without quarantine in the first place:
-      brew install --no-quarantine --cask gander
-
     Or go to: System Settings → Privacy & Security → Open Anyway
   EOS
 end
