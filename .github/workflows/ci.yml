@@ -6,7 +6,7 @@ on:
     branches: [main]
     paths-ignore:
       - '**.md'
-      - 'Cask/**'
+      - 'Casks/**'
 
 jobs:
   build-check:

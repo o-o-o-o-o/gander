@@ -32,10 +32,10 @@ jobs:
       - name: Update Cask and push
         run: |
           VERSION="${{ steps.release.outputs.version }}"
-          sed -i "s/  version \".*\"/  version \"${VERSION#v}\"/" Cask/gander.rb
-          sed -i "s/  sha256 \".*\"/  sha256 \"${{ steps.sha.outputs.sha256 }}\"/" Cask/gander.rb
+          sed -i "s/  version \".*\"/  version \"${VERSION#v}\"/" Casks/gander.rb
+          sed -i "s/  sha256 \".*\"/  sha256 \"${{ steps.sha.outputs.sha256 }}\"/" Casks/gander.rb
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Cask/gander.rb
+          git add Casks/gander.rb
           git commit -m "Update Cask to ${VERSION}"
           git push origin main

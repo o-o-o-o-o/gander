@@ -25,7 +25,7 @@ bash scripts/release.sh 0.2.0
 
 That's it. The script guards against a dirty working tree and duplicate tags, then pushes the tag. GitHub Actions takes over:
 
-1. **`release.yml`** — builds `Gander-v0.2.0.zip` on `macos-latest`, attaches it to a GitHub Release, and commits the updated SHA256 into `Cask/gander.rb`
+1. **`release.yml`** — builds `Gander-v0.2.0.zip` on `macos-latest`, attaches it to a GitHub Release, and commits the updated SHA256 into `Casks/gander.rb`
 2. Users running `brew upgrade gander` pick up the new version automatically
 
 If the Cask ever gets out of sync, re-run the update manually:
@@ -45,7 +45,7 @@ Resources/
 scripts/
   build-release.sh CI build: compiles, bundles .app, zips for distribution
   release.sh       tag + push to trigger a release
-Cask/
+Casks/
   gander.rb        Homebrew Cask definition (auto-updated by release workflow)
 .github/workflows/
   ci.yml           swift build + logic tests on PR / push to main
