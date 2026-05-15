@@ -56,5 +56,5 @@ struct LogicTests {
 }
 SWIFT
 
-swiftc /Users/why/🍇/Applications/Gander/Sources/Gander/Config.swift "$RUNNER" -o "$BIN"
+swiftc Sources/Gander/Config.swift "$RUNNER" -o "$BIN"
 "$BIN"
