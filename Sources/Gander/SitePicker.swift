@@ -11,6 +11,12 @@ class SitePickerView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     var onSelect:  ((String) -> Void)?
     var onDismiss: (() -> Void)?
 
+    private var urlSuggestion: String? {
+        let text = searchField.stringValue.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty, text.contains(".") || text.contains("://"), !text.contains(" ") else { return nil }
+        return text.contains("://") ? text : "https://\(text)"
+    }
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         // Clip so content disappears cleanly when height animates to 0
@@ -93,23 +99,36 @@ class SitePickerView: NSView, NSTableViewDataSource, NSTableViewDelegate {
 
     @objc private func confirm() {
         let row = tableView.selectedRow
-        guard row >= 0, row < filtered.count else { return }
+        guard row >= 0 else { return }
+        if row == filtered.count, let url = urlSuggestion {
+            onSelect?(url)
+            return
+        }
+        guard row < filtered.count else { return }
         onSelect?(filtered[row].url)
     }
 
     // MARK: Table data source
 
-    func numberOfRows(in tableView: NSTableView) -> Int { filtered.count }
+    func numberOfRows(in tableView: NSTableView) -> Int { filtered.count + (urlSuggestion != nil ? 1 : 0) }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        let site = filtered[row]
         let cell = NSTableCellView()
-        let title = site.temporary ? "\(site.name) (temporary)" : site.name
-        let label = NSTextField(labelWithString: title)
+        let label = NSTextField(labelWithString: "")
         label.font = .systemFont(ofSize: 13)
-        let sub = NSTextField(labelWithString: site.url)
+        let sub = NSTextField(labelWithString: "")
         sub.font = .systemFont(ofSize: 11)
         sub.textColor = .secondaryLabelColor
+
+        if row == filtered.count, let url = urlSuggestion {
+            label.stringValue = "Open URL"
+            sub.stringValue = url
+        } else {
+            let site = filtered[row]
+            label.stringValue = site.temporary ? "\(site.name) ~" : site.name
+            sub.stringValue = site.url
+        }
+
         [label, sub].forEach { $0.translatesAutoresizingMaskIntoConstraints = false; cell.addSubview($0) }
         NSLayoutConstraint.activate([
             label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 8),
@@ -129,7 +148,8 @@ extension SitePickerView: NSSearchFieldDelegate {
             $0.name.lowercased().contains(q) || $0.url.lowercased().contains(q)
         }
         tableView.reloadData()
-        if !filtered.isEmpty {
+        let total = filtered.count + (urlSuggestion != nil ? 1 : 0)
+        if total > 0 {
             tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         }
     }
