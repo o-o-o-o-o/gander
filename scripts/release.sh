@@ -23,6 +23,9 @@ fi
 echo "==> Running logic tests"
 bash "$(dirname "$0")/../logic-test.sh"
 
+echo "==> Pushing main"
+git push origin main
+
 echo "==> Tagging ${TAG}"
 git tag "${TAG}"
 
