@@ -7,6 +7,7 @@
 set -euo pipefail
 
 VERSION="${1:?Usage: release.sh <version>  (e.g. 0.2.0)}"
+VERSION="${VERSION#v}"   # strip leading 'v' so both '0.2.0' and 'v0.2.0' work
 TAG="v${VERSION}"
 
 if git rev-parse "${TAG}" >/dev/null 2>&1; then
