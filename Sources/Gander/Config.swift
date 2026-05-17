@@ -36,13 +36,15 @@ struct SiteConfig: Codable {
     var name: String
     var url: String
     var temporary: Bool
+    var shortcut: Int?  // 1–9; used in manual pinned mode only; values outside range are ignored
 
-    enum CodingKeys: String, CodingKey { case name, url, temporary }
+    enum CodingKeys: String, CodingKey { case name, url, temporary, shortcut }
 
-    init(name: String, url: String, temporary: Bool = false) {
+    init(name: String, url: String, temporary: Bool = false, shortcut: Int? = nil) {
         self.name = name
         self.url = url
         self.temporary = temporary
+        self.shortcut = shortcut
     }
 
     init(from decoder: Decoder) throws {
@@ -50,15 +52,16 @@ struct SiteConfig: Codable {
         name = try c.decode(String.self, forKey: .name)
         url = try c.decode(String.self, forKey: .url)
         temporary = (try? c.decode(Bool.self, forKey: .temporary)) ?? false
+        let raw = try? c.decode(Int.self, forKey: .shortcut)
+        shortcut = raw.flatMap { (1...9).contains($0) ? $0 : nil }
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(name, forKey: .name)
         try c.encode(url, forKey: .url)
-        if temporary {
-            try c.encode(temporary, forKey: .temporary)
-        }
+        if temporary { try c.encode(temporary, forKey: .temporary) }
+        if let s = shortcut { try c.encode(s, forKey: .shortcut) }
     }
 }
 
@@ -81,8 +84,10 @@ struct AppConfig: Codable {
     var x: Double?
     var y: Double?
     var defaultUrl: String
-    var chrome: Bool         // false = no title bar or toolbar, keyboard-only nav
-    var stripeHeight: Double // height of the color stripe in points; 0 = no stripe
+    var chrome: Bool            // false = no title bar or toolbar, keyboard-only nav
+    var stripeHeight: Double    // height of the color stripe in points; 0 = no stripe
+    var externalBrowser: String // app name or bundle ID, default "Safari"
+    var pinned: String?         // nil = no shortcuts | "auto" = ⌘1–9 for first 9 sites | "manual" = per-site shortcut field
     var hotkeys: HotkeysConfig
     var sites: [SiteConfig]
 
@@ -96,8 +101,11 @@ struct AppConfig: Codable {
         x            =  try? c.decode(Double.self,          forKey: .x)
         y            =  try? c.decode(Double.self,          forKey: .y)
         defaultUrl   = (try? c.decode(String.self,          forKey: .defaultUrl))   ?? "https://google.com"
-        chrome       = (try? c.decode(Bool.self,            forKey: .chrome))       ?? true
-        stripeHeight = (try? c.decode(Double.self,          forKey: .stripeHeight)) ?? 3
+        chrome          = (try? c.decode(Bool.self,            forKey: .chrome))          ?? true
+        stripeHeight    = (try? c.decode(Double.self,          forKey: .stripeHeight))    ?? 3
+        externalBrowser = (try? c.decode(String.self,          forKey: .externalBrowser)) ?? "Safari"
+        let rawPinned   =  try? c.decode(String.self,          forKey: .pinned)
+        pinned          = rawPinned.flatMap { ["auto", "manual"].contains($0) ? $0 : nil }
         hotkeys      = (try? c.decode(HotkeysConfig.self,   forKey: .hotkeys))      ?? HotkeysConfig()
         sites        = (try? c.decode([SiteConfig].self,    forKey: .sites))        ?? AppConfig.builtinSites
     }
@@ -105,12 +113,14 @@ struct AppConfig: Codable {
     init(name: String = "default", color: String? = nil, width: Double = 420,
          height: Double? = nil, x: Double? = nil, y: Double? = nil,
          defaultUrl: String = "https://google.com", chrome: Bool = true,
-         stripeHeight: Double = 3, hotkeys: HotkeysConfig = HotkeysConfig(),
+         stripeHeight: Double = 3, externalBrowser: String = "Safari",
+         pinned: String? = nil, hotkeys: HotkeysConfig = HotkeysConfig(),
          sites: [SiteConfig] = AppConfig.builtinSites) {
         self.name = name; self.color = color; self.width = width
         self.height = height; self.x = x; self.y = y
         self.defaultUrl = defaultUrl; self.chrome = chrome
-        self.stripeHeight = stripeHeight; self.hotkeys = hotkeys; self.sites = sites
+        self.stripeHeight = stripeHeight; self.externalBrowser = externalBrowser
+        self.pinned = pinned; self.hotkeys = hotkeys; self.sites = sites
     }
 
     static let builtinSites: [SiteConfig] = [

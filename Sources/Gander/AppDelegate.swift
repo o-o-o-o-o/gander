@@ -1,6 +1,7 @@
 import AppKit
 import Carbon
 import ServiceManagement
+import WebKit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     let config: AppConfig
@@ -142,38 +143,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return s.replacingOccurrences(of: "+", with: "")
     }
 
+    private var helpPanel: NSPanel?
+
     @objc func showHelp() {
-        let name = config.name == "default" ? "default" : config.name
-        let alert = NSAlert()
-        alert.messageText = "Gander"
-        alert.informativeText = """
-            Keyboard shortcuts
-            ⌘⇧\\    Toggle sidebar
-            ⌘⇧/    Toggle site picker
-            ⌘⇧]    Next site
-            ⌘⇧[    Previous site
-            ⌘R      Reload page
-            ↑↓      Navigate site list
-            ↩       Open selected site
-            ⎋       Close site picker
+        if let existing = helpPanel, existing.isVisible {
+            existing.makeKeyAndOrderFront(nil)
+            return
+        }
+        let name = config.name
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 580, height: 680),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered, defer: false
+        )
+        panel.title = name == "default" ? "Gander Help" : "Gander Help — \(name)"
+        panel.isReleasedWhenClosed = false
+        panel.center()
 
-            CLI
-            gander \(name) toggle / show / hide
-            gander \(name) sites
-            gander \(name) next / prev
-            gander \(name) open <url>
-            gander \(name) frame --x <n> --y <n> --width <n> --height <n>
-
-            URL scheme
-            gander://\(name)/toggle
-            gander://\(name)/sites
-            gander://\(name)/open?url=<url>
-            gander://\(name)/frame?x=<n>&y=<n>&width=<n>&height=<n>
-
-            Config  ~/.config/gander/\(name).json
-            """
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        let wv = WKWebView(frame: panel.contentView!.bounds)
+        wv.autoresizingMask = [.width, .height]
+        wv.loadHTMLString(HelpContent.html(
+            name: name,
+            toggleKey: prettyHotkey(config.hotkeys.toggle),
+            sitesKey:  prettyHotkey(config.hotkeys.sites),
+            nextKey:   prettyHotkey(config.hotkeys.next),
+            prevKey:   prettyHotkey(config.hotkeys.prev)
+        ), baseURL: Bundle.main.resourceURL)
+        panel.contentView!.addSubview(wv)
+        helpPanel = panel
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKeyAndOrderFront(nil)
     }
 
     private func gooseMenubarIcon() -> NSImage {
@@ -293,6 +292,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func ipcPrev()                  { panel?.prevSite() }
     @objc private func ipcOpen(_ n: Notification) {
         guard let url = n.userInfo?["url"] as? String else { return }
+        if let raw = n.userInfo?["shortcut"] {
+            let n = (raw as? Int) ?? (raw as? NSNumber).map { $0.intValue } ?? Int(String(describing: raw))
+            if let n, (1...9).contains(n) { panel?.setTransientShortcut(n, url: url) }
+        }
         panel?.applyFrame(frameConfig(from: n.userInfo))
         panel?.show()
         panel?.load(url)
@@ -341,6 +344,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         case "open":
             let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
             if let dest = comps?.queryItems?.first(where: { $0.name == "url" })?.value {
+                if let sStr = comps?.queryItems?.first(where: { $0.name == "shortcut" })?.value,
+                   let n = Int(sStr), (1...9).contains(n) {
+                    panel?.setTransientShortcut(n, url: dest)
+                }
                 panel?.applyFrame(frameConfig(from: comps))
                 panel?.show()
                 panel?.load(dest)

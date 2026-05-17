@@ -6,6 +6,7 @@ private let PICKER_HEIGHT: CGFloat = 260
 class SidebarPanel: NSPanel, NSToolbarDelegate {
     private let config: AppConfig
     private var transientSites: [SiteConfig] = []
+    private var transientShortcuts: [Int: String] = [:]  // runtime-only; set via URL scheme shortcut param
 
     // One persistent WKWebView per site — sessions survive site switches
     private var sessions:  [String: WKWebView] = [:]   // keyed by site.url
@@ -38,20 +39,24 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
         isFloatingPanel       = true
         hidesOnDeactivate     = false
         isReleasedWhenClosed  = false
-        isMovableByWindowBackground = !config.chrome  // drag anywhere when chrome-free
 
         if config.chrome { setupToolbar() }
 
         setupLayout()  // must come after toolbar so contentView top is below toolbar
 
-        // ⌘R reload — local monitor fires only when our app is active; no global permission needed
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self,
-                  event.modifierFlags.contains(.command),
-                  event.modifierFlags.intersection([.shift, .option, .control]).isEmpty,
-                  event.charactersIgnoringModifiers == "r" else { return event }
-            self.activeWebView?.reload()
-            return nil
+            guard let self else { return event }
+            let cmd    = event.modifierFlags.contains(.command)
+            let shift  = event.modifierFlags.contains(.shift)
+            let noExtra = event.modifierFlags.intersection([.option, .control]).isEmpty
+            let ch = event.charactersIgnoringModifiers
+            if cmd && !shift && noExtra && ch == "r" { self.activeWebView?.reload(); return nil }
+            if cmd &&  shift && noExtra && ch == "o" { self.openInExternalBrowser(); return nil }
+            if cmd && !shift && noExtra, let ch, ch.count == 1, let n = Int(ch), (1...9).contains(n),
+               self.config.pinned != nil || !self.transientShortcuts.isEmpty {
+                self.activateShortcut(n); return nil
+            }
+            return event
         }
 
         // Open first site on launch
@@ -66,8 +71,52 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
         config.sites + transientSites
     }
 
+    // Returns sites keyed by shortcut number based on the pinned mode.
+    // "auto"   → first 9 config sites get ⌘1–⌘9 in order
+    // "manual" → sites with a shortcut field; first occurrence wins on duplicates
+    private var configShortcuts: [Int: SiteConfig] {
+        switch config.pinned {
+        case "auto":
+            return Dictionary(uniqueKeysWithValues:
+                config.sites.prefix(9).enumerated().map { ($0.offset + 1, $0.element) })
+        case "manual":
+            var result: [Int: SiteConfig] = [:]
+            for site in config.sites where site.shortcut != nil {
+                let n = site.shortcut!
+                if result[n] == nil { result[n] = site }  // first wins
+            }
+            return result
+        default:
+            return [:]
+        }
+    }
+
+    // Merged map of url → shortcut number for the picker; transient overrides config.
+    private func shortcutURLMap() -> [String: Int] {
+        var result: [String: Int] = [:]
+        for (n, site) in configShortcuts { result[site.url] = n }
+        for (n, url) in transientShortcuts { result[url] = n }
+        return result
+    }
+
     private func refreshPickerSites() {
-        pickerView.configure(sites: availableSites)
+        pickerView.configure(sites: availableSites, shortcuts: shortcutURLMap())
+    }
+
+    func setTransientShortcut(_ n: Int, url: String) {
+        guard (1...9).contains(n) else { return }
+        transientShortcuts[n] = url
+        _ = siteForOpening(urlString: url)  // creates transient site entry + session if not already in list
+        refreshPickerSites()                // update shortcut badges
+    }
+
+    private func activateShortcut(_ n: Int) {
+        if let url = transientShortcuts[n] {
+            // switchToSite restores the existing session; siteForOpening creates one if needed
+            switchToSite(siteForOpening(urlString: url))
+        } else if let site = configShortcuts[n] {
+            switchToSite(site)
+        }
     }
 
     private func siteKey(for urlString: String) -> String {
@@ -266,16 +315,61 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
 
     // MARK: Public API
 
-    func load(_ urlString: String) { openURL(urlString) }
+    // Match by exact canonical URL, then fall back to host+path (ignoring query string)
+    // so that search URLs like ?q=term are associated with their parent site entry.
+    private func siteMatchingURL(_ urlString: String) -> SiteConfig? {
+        if let exact = site(namedByURL: urlString) { return exact }
+        guard let comps = URLComponents(string: urlString), let host = comps.host else { return nil }
+        return availableSites.first {
+            guard let sc = URLComponents(string: $0.url), let sh = sc.host else { return false }
+            return sh == host && sc.path == comps.path
+        }
+    }
+
+    private func openInExternalBrowser() {
+        guard let url = activeWebView?.url else { return }
+        let browser = config.externalBrowser
+        let ws = NSWorkspace.shared
+        if let appURL = ws.urlForApplication(withBundleIdentifier: browser) {
+            ws.open([url], withApplicationAt: appURL, configuration: NSWorkspace.OpenConfiguration())
+            return
+        }
+        for dir in ["/Applications", "\(NSHomeDirectory())/Applications", "/System/Applications"] {
+            let path = "\(dir)/\(browser).app"
+            if FileManager.default.fileExists(atPath: path) {
+                ws.open([url], withApplicationAt: URL(fileURLWithPath: path), configuration: NSWorkspace.OpenConfiguration())
+                return
+            }
+        }
+        ws.open(url)
+    }
+
+    func load(_ urlString: String) {
+        if let matched = siteMatchingURL(urlString) {
+            switchToSite(matched)
+            if let url = URL(string: urlString) { activeWebView?.load(URLRequest(url: url)) }
+        } else if let url = URL(string: urlString), let wv = activeWebView {
+            wv.load(URLRequest(url: url))
+        }
+    }
     func show()   { makeKeyAndOrderFront(nil) }
-    func hide()   { orderOut(nil) }
+    func hide()   {
+        if pickerVisible {
+            pickerVisible = false
+            pickerHeightConstraint.constant = 0
+        }
+        orderOut(nil)
+    }
     func toggle() { if isVisible { hide() } else { show() } }
 
     // MARK: Site picker
 
     func showSitePicker() {
-        makeKeyAndOrderFront(nil)   // always steal focus so keyboard works immediately
-        guard !pickerVisible else { return }
+        makeKeyAndOrderFront(nil)
+        if pickerVisible {
+            makeFirstResponder(pickerView.searchField)
+            return
+        }
         pickerVisible = true
         pickerView.prepare()
         NSAnimationContext.runAnimationGroup { ctx in
@@ -283,8 +377,19 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
             pickerHeightConstraint.animator().constant = PICKER_HEIGHT
         }
+        // Guard against the case where the picker is dismissed before this fires.
         DispatchQueue.main.async { [weak self] in
-            self?.makeFirstResponder(self?.pickerView.searchField)
+            guard let self, self.pickerVisible else { return }
+            self.makeFirstResponder(self.pickerView.searchField)
+        }
+    }
+
+    // When the panel becomes key (possibly async, e.g. panel wasn't key when showSitePicker
+    // was called), focus the search field if the picker is open.
+    override func becomeKey() {
+        super.becomeKey()
+        if pickerVisible {
+            makeFirstResponder(pickerView.searchField)
         }
     }
 
@@ -307,6 +412,10 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             openURL(url)
         }
     }
+
+    // NSPanel with .nonactivatingPanel can only become key if it has .titled or a toolbar.
+    // We have neither in chrome-free mode, so we override explicitly.
+    override var canBecomeKey: Bool { true }
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53, pickerVisible { hideSitePicker() }

@@ -10,6 +10,7 @@ class SitePickerView: NSView, NSTableViewDataSource, NSTableViewDelegate {
 
     var onSelect:  ((String) -> Void)?
     var onDismiss: (() -> Void)?
+    private var shortcutMap: [String: Int] = [:]  // site.url → shortcut number (1–9)
 
     private var urlSuggestion: String? {
         let text = searchField.stringValue.trimmingCharacters(in: .whitespaces)
@@ -26,9 +27,10 @@ class SitePickerView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     }
     required init?(coder: NSCoder) { fatalError() }
 
-    func configure(sites: [SiteConfig]) {
+    func configure(sites: [SiteConfig], shortcuts: [String: Int] = [:]) {
         allSites = sites
         filtered = sites
+        shortcutMap = shortcuts
     }
 
     // Call before showing to reset search state
@@ -120,6 +122,7 @@ class SitePickerView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         sub.font = .systemFont(ofSize: 11)
         sub.textColor = .secondaryLabelColor
 
+        var shortcutN: Int? = nil
         if row == filtered.count, let url = urlSuggestion {
             label.stringValue = "Open URL"
             sub.stringValue = url
@@ -127,15 +130,28 @@ class SitePickerView: NSView, NSTableViewDataSource, NSTableViewDelegate {
             let site = filtered[row]
             label.stringValue = site.temporary ? "\(site.name) ~" : site.name
             sub.stringValue = site.url
+            shortcutN = shortcutMap[site.url]
         }
 
         [label, sub].forEach { $0.translatesAutoresizingMaskIntoConstraints = false; cell.addSubview($0) }
-        NSLayoutConstraint.activate([
+        var constraints: [NSLayoutConstraint] = [
             label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 8),
             label.topAnchor.constraint(equalTo: cell.topAnchor, constant: 3),
             sub.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 8),
             sub.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 1),
-        ])
+        ]
+        if let n = shortcutN {
+            let badge = NSTextField(labelWithString: "⌘\(n)")
+            badge.font = .systemFont(ofSize: 11)
+            badge.textColor = .tertiaryLabelColor
+            badge.translatesAutoresizingMaskIntoConstraints = false
+            cell.addSubview(badge)
+            constraints += [
+                badge.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -8),
+                badge.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+            ]
+        }
+        NSLayoutConstraint.activate(constraints)
         return cell
     }
 }
