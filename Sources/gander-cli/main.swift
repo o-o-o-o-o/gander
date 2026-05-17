@@ -43,7 +43,7 @@ func usage() -> String {
       gander [instance] sites
       gander [instance] next
       gander [instance] prev
-      gander [instance] open <url> [--x n --y n --width n --height n]
+      gander [instance] open <url> [--shortcut 1-9] [--x n --y n --width n --height n]
       gander [instance] frame --x n --y n --width n --height n
       gander [instance] menubar
     """
@@ -136,9 +136,31 @@ case "next":
 case "prev":
     nc.postNotificationName(.init("\(prefix).prev"), object: nil, deliverImmediately: true)
 case "open":
-    let (url, frame) = parseURLAndFrame(args, requiresURL: true)
+    // Extract --shortcut before passing remaining args to parseURLAndFrame
+    var remainingArgs: [String] = []
+    var shortcut: Int? = nil
+    var i = 0
+    while i < args.count {
+        if args[i] == "--shortcut" {
+            i += 1
+            guard i < args.count else {
+                fputs("gander: '--shortcut' requires a value (1–9)\n\(usage())\n", stderr)
+                exit(1)
+            }
+            guard let n = Int(args[i]), (1...9).contains(n) else {
+                fputs("gander: '--shortcut' requires a number between 1 and 9\n\(usage())\n", stderr)
+                exit(1)
+            }
+            shortcut = n
+        } else {
+            remainingArgs.append(args[i])
+        }
+        i += 1
+    }
+    let (url, frame) = parseURLAndFrame(remainingArgs, requiresURL: true)
     var userInfo = frame.asUserInfo()
     userInfo["url"] = url!
+    if let n = shortcut { userInfo["shortcut"] = n }
     nc.postNotificationName(.init("\(prefix).open"), object: nil,
                             userInfo: userInfo, deliverImmediately: true)
 case "frame":
@@ -156,4 +178,6 @@ default:
     exit(1)
 }
 
+// DistributedNotificationCenter delivery is async — the process must stay alive
+// long enough for the OS to route the notification before exit(0) fires.
 Thread.sleep(forTimeInterval: 0.15)

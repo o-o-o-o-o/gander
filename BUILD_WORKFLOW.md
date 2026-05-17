@@ -51,8 +51,10 @@ make publish-open
 - Processes `Resources/greg.png` into the bundled menubar template image.
 - Refreshes `Gander.app` in the repo.
 - Copies the app to `/Applications/Gander.app`.
-- Rebuilds the `gander` CLI binary.
-- Installs the CLI to `/usr/local/bin/gander` only when that directory is writable.
+
+The `gander` CLI is **not** installed to `/usr/local/bin` by `build.sh`. In local dev use
+`.build/release/gander` directly. For users, the CLI reaches PATH via the Homebrew Cask's
+`binary` stanza (`gander-cli` inside the bundle, symlinked as `gander`).
 
 ## Verification checklist
 

@@ -8,8 +8,10 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     private var transientSites: [SiteConfig] = []
     private var transientShortcuts: [Int: String] = [:]  // runtime-only; set via URL scheme shortcut param
 
-    // One persistent WKWebView per site — sessions survive site switches
-    private var sessions:  [String: WKWebView] = [:]   // keyed by site.url
+    // One persistent WKWebView per canonical URL — sessions (cookies, JS state, scroll) survive
+    // site switches. Switching just swaps which WKWebView is in the view hierarchy.
+    // Tradeoff: each WKWebView spawns a Web Content process; fine for 5–10 sites.
+    private var sessions:  [String: WKWebView] = [:]   // keyed by canonicalURLString(site.url)
     private var activeKey: String? = nil
 
     private var webContainer:            NSView!

@@ -19,6 +19,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.config = config
     }
 
+    // Two overloads: IPC notifications carry userInfo dicts; URL scheme carries URLComponents.
+    // Both extract the same four optional doubles — kept separate to avoid a bridging layer.
     private func frameConfig(from userInfo: [AnyHashable: Any]?) -> FrameConfig {
         func read(_ key: String) -> Double? {
             guard let raw = userInfo?[key] else { return nil }

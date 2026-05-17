@@ -77,18 +77,28 @@ When you open a URL that is not already listed in `sites`, Gander adds it to the
 
 ## Keyboard shortcuts
 
-| Shortcut | Action                          |
-| -------- | ------------------------------- |
-| `⌘⇧\`    | Toggle sidebar                  |
-| `⌘⇧/`    | Open site picker (fuzzy search) |
-| `⌘[`     | Back (when webview focused)     |
-| `⌘]`     | Forward (when webview focused)  |
-| `⌘R`     | Reload (when webview focused)   |
-| `↑ ↓`    | Navigate site list              |
-| `↩`      | Select site                     |
-| `Esc`    | Close site picker               |
+| Shortcut  | Action                                        |
+| --------- | --------------------------------------------- |
+| `⌘⇧\`     | Toggle sidebar                                |
+| `⌘⇧/`     | Open site picker (fuzzy search)               |
+| `⌘⇧]`     | Next site                                     |
+| `⌘⇧[`     | Previous site                                 |
+| `⌘1`–`⌘9` | Jump to pinned site (when `pinned` is set)   |
+| `⌘R`      | Reload page (when sidebar is focused)         |
+| `⌘⇧O`     | Open current page in external browser         |
+| `⌘[`      | Back (when webview focused)                   |
+| `⌘]`      | Forward (when webview focused)                |
 
-Toolbar buttons (back, forward, reload, sites) are always clickable regardless of focus.
+**In site picker:**
+
+| Shortcut | Action                                                    |
+| -------- | --------------------------------------------------------- |
+| `↑ ↓`   | Navigate list                                             |
+| `↩`      | Open selected site                                        |
+| `Esc`    | Dismiss                                                   |
+| (type)   | Filter by name or URL — a bare URL or domain opens it directly |
+
+Toolbar buttons (back, forward, sites) are always clickable regardless of focus.
 
 ---
 
