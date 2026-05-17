@@ -612,7 +612,13 @@ When you download an `.app` from the internet, macOS applies a quarantine extend
 If neither, Gatekeeper blocks launch and shows "cannot be opened because it is from an
 unidentified developer." The user can override via System Settings → Privacy & Security.
 
-Homebrew Cask's `--no-quarantine` flag (or `xattr -dr com.apple.quarantine`) removes the
-quarantine attribute at install time, bypassing Gatekeeper. This is why the Cask caveats
-mention this — Gander is unsigned and unnotarized, which is fine for a personal tool
-distributed to technical users who understand what they're installing.
+Since Gander is unsigned and unnotarized, Homebrew's Cask caveats instruct users to remove
+the quarantine attribute manually after install, or approve the app via System Settings:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Gander.app
+# or: System Settings → Privacy & Security → Open Anyway
+```
+
+Note: `brew install --no-quarantine` was removed from Homebrew — the flag no longer exists.
+The `xattr` approach is the only post-install workaround now.
