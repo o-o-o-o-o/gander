@@ -3,6 +3,10 @@
 Everything discovered while building and iterating on Gander. Organized for fast re-onboarding
 and to avoid repeating the same mistakes.
 
+*Note: this is a first Swift/macOS native app. The "AppKit Fundamentals" section below captures
+patterns that experienced AppKit developers take for granted but that are non-obvious when
+coming from other platforms.*
+
 ---
 
 ## What Gander Is
@@ -317,3 +321,298 @@ This project is a clean minimal template for no-Xcode NSPanel Mac apps. The patt
 To fork for a new app: update `Package.swift` names, replace `Sources/Gander/` with your
 source, replace `Sources/gander-cli/` with your CLI, update `Casks/gander.rb`, update
 notification name prefix (`com.gander.`) and hotkey signature (`0x47414E44 / GAND`).
+
+---
+
+## AppKit Fundamentals (First-Time Notes)
+
+Patterns that are non-obvious when coming from web, scripting, or other UI frameworks.
+Experienced AppKit developers treat these as background knowledge — worth capturing explicitly
+since this is a first native Mac app.
+
+### Why AppKit and not SwiftUI
+
+SwiftUI is Apple's modern framework, but it couldn't do what Gander needs:
+
+- No `NSPanel` equivalent — SwiftUI's window API doesn't expose the `.nonactivatingPanel`
+  style mask, `collectionBehavior`, or `hidesOnDeactivate`
+- No way to make a window float across all Spaces and window managers at a specific level
+- Carbon hotkeys are a C API — they work fine alongside AppKit with no bridging needed
+
+SwiftUI is excellent for standard app windows, preference panels, and typical Mac app UIs.
+For anything that requires precise control over window behavior (floating panels, non-activating
+windows, system-wide hotkeys), AppKit gives you direct access to the underlying Cocoa layer.
+You can also mix them: a SwiftUI view inside an `NSHostingView` inside an `NSPanel` is valid.
+
+### macOS App Lifecycle
+
+`main.swift` is the true entry point. The pattern:
+```swift
+let app = NSApplication.shared
+app.setActivationPolicy(.accessory)   // no Dock icon, no app switcher
+let delegate = AppDelegate(config: config)
+app.delegate = delegate
+app.run()                             // blocks forever — this is the run loop
+```
+
+`app.run()` starts the **run loop**, which drives everything: UI events, timers, notifications,
+delegate callbacks. All of this happens on the main thread. Never block the main thread — no
+`Thread.sleep`, no synchronous file I/O, no synchronous network calls. If the main thread
+blocks, the whole app freezes.
+
+**`setActivationPolicy(.accessory)`** — the app won't appear in the Dock or Cmd-Tab switcher.
+`.regular` (the default) shows in both. `.prohibited` completely hides the app.
+
+**`LSUIElement = true` in Info.plist** is a second layer: it suppresses the app from appearing
+in contexts that `.accessory` alone might miss. Both are needed for a pure menu bar app.
+
+### `translatesAutoresizingMaskIntoConstraints = false` — Required for Every Programmatic View
+
+This is one of the most common AppKit/UIKit pitfalls. When you create an `NSView` in code
+and add it to a layout, you **must** set this before activating constraints:
+
+```swift
+let myView = NSView()
+myView.translatesAutoresizingMaskIntoConstraints = false   // ← always, immediately
+parentView.addSubview(myView)
+NSLayoutConstraint.activate([
+    myView.topAnchor.constraint(equalTo: parentView.topAnchor),
+    ...
+])
+```
+
+**Why:** By default, AppKit auto-generates constraints from the view's `autoresizingMask`
+(a legacy layout system). Those auto-generated constraints conflict with yours, causing
+broken layouts and console warnings. Setting this to `false` disables the auto-generation.
+
+If you see layout ambiguity warnings or views appearing at the wrong position, this is the
+first thing to check.
+
+### `@objc` and Selectors
+
+AppKit predates Swift by decades and is written in Objective-C. Methods used as action targets
+(`NSButton.action`, `NSMenuItem.action`, Carbon callbacks) must be exposed to the Obj-C runtime
+via `@objc`:
+
+```swift
+@objc private func togglePanel() { panel?.toggle() }
+
+// Used as:
+button.action = #selector(togglePanel)
+button.target = self
+```
+
+Without `@objc` you get a compile error: *"argument of '#selector' refers to instance method
+that is not exposed to Objective-C."*
+
+Delegate protocol methods (e.g. `NSMenuDelegate`, `NSTableViewDelegate`) are implicitly
+`@objc` because the protocols themselves are Objective-C. You only need to add `@objc`
+explicitly to your own methods that you pass as selectors.
+
+### `[weak self]` in Closures — Avoiding Retain Cycles
+
+Swift uses ARC (Automatic Reference Counting) for memory management. A closure captures
+everything it references, keeping those objects alive. If an object holds a closure that also
+holds a strong reference back to that object, neither is ever released — a **retain cycle**.
+
+```swift
+// Retain cycle: SidebarPanel → pickerView.onSelect → (captures self = SidebarPanel)
+pickerView.onSelect = { url in self.pickerDidSelect(url: url) }
+
+// Correct: weak reference breaks the cycle
+pickerView.onSelect = { [weak self] url in self?.pickerDidSelect(url: url) }
+```
+
+`[weak self]` makes `self` a weak optional inside the closure. If `self` is deallocated before
+the closure fires, `self?` is nil and the call is safely skipped.
+
+**Rule of thumb:** any closure stored as a property on another object that captures `self`
+→ use `[weak self]`. Closures passed as inline arguments that aren't stored (e.g. `UIView.animate`)
+→ usually fine without it.
+
+### `isReleasedWhenClosed = false`
+
+By default, `NSWindow` (and `NSPanel`) deallocates itself when closed. For Gander's panel,
+which is hidden and re-shown rather than truly closed, this would destroy the panel and all
+its WebView sessions.
+
+```swift
+isReleasedWhenClosed = false
+```
+
+Required for any window you intend to show more than once. Without it, the second `show()`
+call crashes or silently does nothing against a dead object.
+
+### Passing `self` to C Callbacks (the Unmanaged Pattern)
+
+Carbon APIs use C conventions: callbacks receive a `void*` user-data pointer. Bridging a
+Swift object through a C pointer requires `Unmanaged`:
+
+```swift
+// Wrap self as an opaque pointer — "passUnretained" means ARC doesn't transfer ownership.
+// We guarantee self stays alive for the callback's lifetime (it's the AppDelegate).
+let selfPtr = Unmanaged.passUnretained(self).toOpaque()
+
+InstallEventHandler(..., selfPtr, &carbonHandler)
+
+// Inside the C callback — recover the Swift object without claiming ownership
+let me = Unmanaged<AppDelegate>.fromOpaque(userData!).takeUnretainedValue()
+DispatchQueue.main.async { me.panel?.toggle() }
+```
+
+`passRetained` / `takeRetainedValue` would transfer ARC ownership (incrementing the retain
+count), requiring a matching `release()`. `passUnretained` / `takeUnretainedValue` bypasses ARC
+entirely — safe here because AppDelegate lives for the entire app lifetime.
+
+### UI Updates Must Happen on the Main Thread
+
+Carbon's event callback fires on whatever thread the OS uses. AppKit requires all UI mutations
+to happen on the main thread — calling UI code off the main thread causes crashes or silent
+corruption that's hard to reproduce.
+
+```swift
+// Always dispatch UI work from background/callback contexts
+DispatchQueue.main.async {
+    self.panel?.toggle()
+}
+```
+
+If you see intermittent crashes or glitchy UI in response to hotkeys or notifications, check
+whether the triggering callback is on the main thread.
+
+### KVO — Watching Properties for Changes
+
+Key-Value Observing lets you watch any `@objc dynamic` property for changes. Gander uses it
+to mirror the WKWebView's page title into the panel's title bar:
+
+```swift
+// .initial fires immediately with the current value
+// .new fires on every subsequent change
+titleObservation = wv.observe(\.title, options: [.initial, .new]) { webView, _ in
+    self.title = webView.title ?? "Sidebar"
+}
+```
+
+The observation token (`NSKeyValueObservation`) **must be kept alive** — the moment it's
+deallocated (or set to `nil`), observation stops. Store it in a `var` property. Reassigning
+the property automatically cancels the previous observation.
+
+### `NSVisualEffectView` for Frosted Glass
+
+The site picker's backdrop is `NSVisualEffectView`, which uses the system compositor to blur
+and tint content:
+
+```swift
+let fx = NSVisualEffectView()
+fx.material = .sidebar          // style — .sidebar, .menu, .popover, .hudWindow, etc.
+fx.blendingMode = .behindWindow // blur what's behind the window (not just behind the view)
+fx.state = .active              // always active, not just when the window is key
+```
+
+`.behindWindow` is correct for a floating panel that appears over other apps' windows. 
+`.withinWindow` only blurs content within the same window, which looks wrong here.
+
+### The Responder Chain
+
+AppKit routes keyboard events through a chain: first responder → window → application →
+app delegate. Each object in the chain can handle or forward the event.
+
+`makeFirstResponder(_:)` designates who gets keyboard input:
+
+```swift
+makeFirstResponder(pickerView.searchField)  // direct keyboard to search field
+makeFirstResponder(activeWebView)           // return it to the web view
+```
+
+With `.nonactivatingPanel`, the panel doesn't steal focus when shown — it won't become key
+automatically. This is why `showSitePicker()` calls `makeKeyAndOrderFront` before
+`makeFirstResponder`, and why `becomeKey()` is overridden to refocus the search field if the
+picker is open when the panel eventually does become key.
+
+### How the `gander://` URL Scheme Works
+
+URL scheme registration happens via Launch Services when the app is installed. The system
+routes `gander://` URLs to your app via Apple Events:
+
+```swift
+NSAppleEventManager.shared().setEventHandler(
+    self, andSelector: #selector(handleURL(_:withReplyEvent:)),
+    forEventClass: AEEventClass(kInternetEventClass),
+    andEventID: AEEventID(kAEGetURL)
+)
+```
+
+`kInternetEventClass` + `kAEGetURL` is the specific Apple Event the OS sends when a URL with
+your registered scheme is opened anywhere in the system. This is why `make install` runs
+`lsregister` — it tells Launch Services that this `.app` handles `gander://`. Without that
+registration step, `open -g "gander://toggle"` just fails silently.
+
+### `SMAppService` — Login Items (Open at Login)
+
+macOS 13+ uses `SMAppService` to register an app to launch at login:
+
+```swift
+import ServiceManagement
+
+let service = SMAppService.mainApp
+try service.register()    // add to login items
+try service.unregister()  // remove from login items
+service.status            // .enabled / .notRegistered / .requiresApproval / .notFound
+```
+
+This replaces the old `SMLoginItemSetEnabled` API. The `status` property lets you show a
+checkmark in the menu — check it in `menuWillOpen` (not at menu creation time) so it reflects
+the current state rather than the state at launch.
+
+### Swift's `Codable` — Graceful Config Loading
+
+`AppConfig` uses a custom `init(from decoder:)` rather than the auto-synthesized one because
+every field needs a default:
+
+```swift
+// Auto-synthesis would throw if any field is missing.
+// Custom init reads each field with a fallback:
+name = (try? c.decode(String.self, forKey: .name)) ?? "default"
+```
+
+`try? c.decode(...)` returns `nil` if the key is missing or the value is the wrong type —
+never throws. The `?? "default"` then provides the fallback. This means a completely empty
+JSON object `{}` is a valid config (uses all defaults), and a partial config only overrides
+what's present.
+
+### The `.app` Bundle Structure
+
+macOS doesn't distribute raw executables — it uses `.app` bundles, which are directories
+that the Finder presents as a single file:
+
+```
+Gander.app/
+  Contents/
+    MacOS/
+      Gander        ← main executable (CFBundleExecutable)
+      gander-cli    ← bundled CLI tool
+    Resources/
+      AppIcon.icns  ← app icon
+      greg.png      ← menu bar icon
+    Info.plist      ← metadata: bundle ID, version, URL schemes, LSUIElement, etc.
+```
+
+`Info.plist` is how macOS knows everything about your app without running it: what executable
+to launch, what URL schemes it handles, whether to show in the Dock, what its icon is, etc.
+`swift build` produces binaries; `build.sh` manually assembles the `.app` directory structure
+and writes `Info.plist` — this is what Xcode normally does for you.
+
+### macOS Security: Gatekeeper, Quarantine, and Notarization
+
+When you download an `.app` from the internet, macOS applies a quarantine extended attribute
+(`com.apple.quarantine`) to the file. On first launch, Gatekeeper checks:
+1. Is the app signed with a Developer ID certificate? (requires paid Apple Developer account)
+2. Is it notarized? (submitted to Apple's servers for malware scan)
+
+If neither, Gatekeeper blocks launch and shows "cannot be opened because it is from an
+unidentified developer." The user can override via System Settings → Privacy & Security.
+
+Homebrew Cask's `--no-quarantine` flag (or `xattr -dr com.apple.quarantine`) removes the
+quarantine attribute at install time, bypassing Gatekeeper. This is why the Cask caveats
+mention this — Gander is unsigned and unnotarized, which is fine for a personal tool
+distributed to technical users who understand what they're installing.
