@@ -64,6 +64,20 @@ Without `isFloatingPanel = true` some window managers pull it off the floating l
 This burned us when `chrome: false` was introduced and removed `.titled` and the toolbar —
 everything stopped working with no error message. The fix is one line.
 
+### Copy/paste in a non-activating accessory app
+
+⌘C/⌘V did nothing because Gander never becomes the active app (`.nonactivatingPanel` +
+`.accessory`), so the frontmost app's menu bar kept those shortcuts. Two pieces fix it without
+activating Gander or stealing focus from the user's main app:
+
+1. **Hidden `NSApp.mainMenu` Edit submenu** — standard pattern for menu-bar-only apps; wires
+   key equivalents into the responder chain when they do reach Gander.
+2. **Local key monitor in `SidebarPanel`** — when `isKeyWindow`, intercept ⌘C/⌘V/⌘X/⌘A and
+   `NSApp.sendAction(..., to: nil, from: event)` so they hit `WKWebView` or the site picker's
+   search field even while another app stays active.
+
+Do not call `NSApp.activate` on click — that would break the sidebar-over-IDE workflow.
+
 ### Carbon `RegisterEventHotKey` for global hotkeys
 
 Alternatives considered: `CGEventTap` (requires Input Monitoring TCC permission, user dialog),
@@ -134,6 +148,32 @@ one reads from a `[AnyHashable: Any]?` userInfo dictionary (used by IPC notifica
 reads from `URLComponents?` query items (used by the `gander://` URL scheme). The duplication
 avoids a shared extraction layer that would need to bridge the two formats — both callers are
 one line each.
+
+### WKWebView privacy vs. Safari — what's missing and what's possible
+
+WKWebView shares Safari's rendering engine and gets ITP (Intelligent Tracking Prevention),
+HTTPS upgrades, same-site cookie isolation, and WebKit fingerprinting mitigations. But several
+Safari privacy features are Safari-specific and not available to WKWebView at all:
+
+| Feature | WKWebView | Can be added? |
+|---|---|---|
+| Intelligent Tracking Prevention | ✅ same engine | — |
+| HTTPS upgrade | ✅ | — |
+| Fingerprinting mitigations | ✅ | — |
+| Private Browsing (ephemeral session) | manual only | ✅ `websiteDataStore = .nonPersistent()` |
+| Fraudulent website warnings (Safe Browsing) | ❌ | ⚠️ only via custom `WKNavigationDelegate` + your own list |
+| iCloud Private Relay (IP hiding) | ❌ Safari-only | ❌ not exposed to apps |
+| Link Tracking Protection (strip `?fbclid=` etc.) | ❌ Safari-only | ⚠️ partial — strip known params in `decidePolicyFor navigationAction` |
+| Safari Extensions / content blockers (user-installed) | ❌ | ✅ first-party `WKContentRuleList` only |
+
+**What can realistically be added to Gander:**
+- **Ephemeral sessions**: already easy — pass `.nonPersistent()` to `WKWebViewConfiguration.websiteDataStore`. Could be a per-site config option.
+- **Link Tracking Protection**: intercept navigation in `WKNavigationDelegate.decidePolicyFor` and strip well-known tracking params (`fbclid`, `gclid`, `utm_*`, etc.) before loading. Straightforward but requires maintaining the param list.
+- **Content blocking**: compile a `WKContentRuleList` from a JSON rule list (e.g. EasyList format) and attach it to the `WKWebViewConfiguration`. This is how third-party iOS browsers get ad blocking.
+
+**What cannot be added:**
+- iCloud Private Relay is a system-level feature gated to Safari by Apple. No API exposes it to third-party apps.
+- Safe Browsing (Google's list) is also not exposed — you'd need to query the Google Safe Browsing API yourself with a key and check every navigation.
 
 ---
 

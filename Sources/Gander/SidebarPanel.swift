@@ -58,6 +58,17 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
                self.config.pinned != nil || !self.transientShortcuts.isEmpty {
                 self.activateShortcut(n); return nil
             }
+            // Non-activating panel: active app's menu bar still owns ⌘C/⌘V unless we intercept.
+            if cmd && !shift && noExtra && self.isKeyWindow, let ch {
+                let edit: Selector? = switch ch {
+                case "c": #selector(NSText.copy(_:))
+                case "v": #selector(NSText.paste(_:))
+                case "x": #selector(NSText.cut(_:))
+                case "a": #selector(NSText.selectAll(_:))
+                default: nil
+                }
+                if let edit, NSApp.sendAction(edit, to: nil, from: event) { return nil }
+            }
             return event
         }
 
