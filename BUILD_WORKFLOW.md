@@ -16,7 +16,7 @@ What it does:
 3. Runs `bash build.sh` to produce the release app bundle.
 4. Runs `bash smoke-test.sh` against an isolated temporary instance and checks the installed app's `gander://show`, `gander://toggle`, and `gander://hide` handlers.
 5. Registers the `gander://` URL scheme.
-6. Reinstalls `/Applications/Gander.app`.
+6. Builds `./Gander.app` in the repo root (does not touch `/Applications`).
 
 Optional flags:
 
@@ -34,7 +34,7 @@ swift build
 bash logic-test.sh
 bash build.sh
 bash smoke-test.sh
-open /Applications/Gander.app
+open Gander.app
 ```
 
 Or via `make`:
@@ -50,7 +50,7 @@ make publish-open
 - Regenerates the app icon.
 - Processes `Resources/greg.png` into the bundled menubar template image.
 - Refreshes `Gander.app` in the repo.
-- Copies the app to `/Applications/Gander.app`.
+- Writes `Gander.app` in the repo root.
 
 The `gander` CLI is **not** installed to `/usr/local/bin` by `build.sh`. In local dev use
 `.build/release/gander` directly. For users, the CLI reaches PATH via the Homebrew Cask's
@@ -60,7 +60,7 @@ The `gander` CLI is **not** installed to `/usr/local/bin` by `build.sh`. In loca
 
 1. Confirm the build completes without compiler errors.
 2. Confirm smoke tests pass.
-3. Launch `/Applications/Gander.app`.
+3. Launch `Gander.app` from the repo root.
 4. Confirm the menubar icon size looks correct.
 5. Confirm the installed app still responds to `gander://show`, `gander://toggle`, and `gander://hide`.
 6. If you changed config, window frame, or site routing, test one configured URL and one ad hoc URL.

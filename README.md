@@ -16,9 +16,9 @@ I wanted a dedicated and scriptable browser that gets out of my way when I want 
 
 ```bash
 cd /Users/why/🍇/Applications/Gander
-bash publish.sh        # build, logic-test, smoke-test, install /Applications/Gander.app
+bash publish.sh        # build, logic-test, smoke-test → ./Gander.app
 make publish           # same workflow, shorter entry point
-open /Applications/Gander.app
+open Gander.app
 ```
 
 For a named instance (see Multiple instances below):
@@ -218,6 +218,18 @@ bash publish.sh --open
 ```
 
 Use [BUILD_WORKFLOW.md](BUILD_WORKFLOW.md) as the short operational checklist for local build, logic-test, smoke-test, `gander://toggle` verification, and publish.
+
+## Install and upgrades
+
+Homebrew:
+
+```bash
+brew tap o-o-o-o-o/gander
+brew install --cask gander
+brew update && brew upgrade --cask gander   # pull a new release
+```
+
+Or download `Gander-vX.Y.Z.zip` from [GitHub Releases](https://github.com/o-o-o-o-o/gander/releases). Maintainer release steps: [RELEASE.md](RELEASE.md).
 
 ## Acknowledgments
 

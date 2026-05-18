@@ -80,8 +80,22 @@ Do not call `NSApp.activate` on click — that would break the sidebar-over-IDE 
 
 **1Password direct paste:** 1Password tags copied passwords with `org.nspasteboard.ConcealedType` /
 `com.agilebits.onepassword`. WKWebView refuses that pasteboard shape; pasting into TextEdit first
-strips the markers. Fix: on ⌘V when those types are present, read plain `NSString` in AppKit and
-`evaluateJavaScript` into the focused input (same text, bypasses WebKit's concealed filter).
+strips the markers. Fix: on ⌘V when those types are present, read plain `NSString`, trim trailing
+newlines (common 1Password gotcha — causes "invalid login" while the field looks correct), rewrite
+the pasteboard without concealed types, then call normal `paste:`. JS inject is fallback only.
+
+**Login "invalid" in WKWebView:** If typing manually also fails in Safari but works in Chrome, it's
+the site. If it works in Safari but not Gander, check Safari-like `customUserAgent` and that
+`activeWebView` is first responder (`show` / `becomeKey`). Google/Facebook/Apple OAuth often block
+all embedded webviews — use "Open in browser" (⌘⇧O) for those.
+
+**Safari Web Inspector for Gander:** WKWebView does not appear under Develop until `isInspectable = true`
+(macOS 13.3+, set in `makeWebView()` / Help panel). Quit and relaunch after rebuilding; panel must
+be open with a page loaded. Safari → Settings → Advanced → “Show features for web developers”.
+
+**⌘⇧O did nothing:** `charactersIgnoringModifiers` is `"O"` with Shift held, not `"o"`. Compare with
+`lowercased()`. Default `externalBrowser: "Safari"` is an app name, not bundle ID — resolve via
+`com.apple.Safari` or `/Applications/Safari.app`.
 
 ### Carbon `RegisterEventHotKey` for global hotkeys
 
@@ -195,7 +209,7 @@ bash publish.sh --skip-smoke   # skip smoke tests (faster iteration)
 Under the hood `publish.sh` runs:
 1. `swift build` — fast compiler check
 2. `bash logic-test.sh` — source-level unit tests (Config.swift only, no app launch)
-3. `bash build.sh` — full release bundle, installs to /Applications/Gander.app
+3. `bash build.sh` — full release bundle → `./Gander.app` (repo root, not /Applications)
 4. `bash smoke-test.sh` — launches an isolated instance, exercises CLI commands
 
 ### Release

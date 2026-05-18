@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 cd "$(dirname "$0")"
+ROOT="$(pwd)"
+APP_BUNDLE="${ROOT}/Gander.app"
+
+# Version for Info.plist + Help (latest tag, or commit-ish dev label)
+VERSION="$(git describe --tags --dirty 2>/dev/null | sed 's/^v//' || echo "dev")"
 
 swift build -c release
 
@@ -87,7 +92,7 @@ cp .build/release/GanderApp "$APP/MacOS/Gander"
 cp /tmp/Gander.icns "$APP/Resources/AppIcon.icns"
 cp /tmp/greg_template.png "$APP/Resources/greg.png"
 
-cat > "$APP/Info.plist" << 'PLIST'
+cat > "$APP/Info.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -95,7 +100,8 @@ cat > "$APP/Info.plist" << 'PLIST'
     <key>CFBundleIdentifier</key><string>io.gander.app</string>
     <key>CFBundleName</key><string>Gander</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
-    <key>CFBundleVersion</key><string>1.0</string>
+    <key>CFBundleVersion</key><string>${VERSION}</string>
+    <key>CFBundleShortVersionString</key><string>${VERSION}</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
     <key>CFBundleURLTypes</key>
@@ -106,6 +112,5 @@ cat > "$APP/Info.plist" << 'PLIST'
 </dict></plist>
 PLIST
 
-echo "✓ Gander.app built"
-echo "  To test: open Gander.app"
-echo "  To install locally: make install"
+echo "✓ Gander.app built at ${APP_BUNDLE}"
+echo "  To test: open \"${APP_BUNDLE}\""

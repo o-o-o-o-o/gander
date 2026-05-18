@@ -53,7 +53,10 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             let noExtra = event.modifierFlags.intersection([.option, .control]).isEmpty
             let ch = event.charactersIgnoringModifiers
             if cmd && !shift && noExtra && ch == "r" { self.activeWebView?.reload(); return nil }
-            if cmd &&  shift && noExtra && ch == "o" { self.openInExternalBrowser(); return nil }
+            // Shift produces "O" not "o" in charactersIgnoringModifiers.
+            if cmd && shift && noExtra && self.isKeyWindow && ch?.lowercased() == "o" {
+                self.openInExternalBrowser(); return nil
+            }
             if cmd && !shift && noExtra, let ch, ch.count == 1, let n = Int(ch), (1...9).contains(n),
                self.config.pinned != nil || !self.transientShortcuts.isEmpty {
                 self.activateShortcut(n); return nil
@@ -206,8 +209,19 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     private func makeWebView() -> WKWebView {
         let wv = WKWebView(frame: .zero)
         wv.translatesAutoresizingMaskIntoConstraints = false
+        // Default WKWebView UA omits "Version/… Safari/…"; some login flows reject that.
+        wv.customUserAgent = Self.safariUserAgent
+        wv.enableInspection()
         return wv
     }
+
+    private static let safariUserAgent: String = {
+        let webKit = Bundle(identifier: "com.apple.WebKit")?
+            .infoDictionary?["CFBundleShortVersionString"] as? String ?? "605.1.15"
+        let v = ProcessInfo.processInfo.operatingSystemVersion
+        let os = "\(v.majorVersion)_\(v.minorVersion)_\(v.patchVersion)"
+        return "Mozilla/5.0 (Macintosh; Intel Mac OS X \(os)) AppleWebKit/\(webKit) (KHTML, like Gecko) Version/\(webKit) Safari/\(webKit)"
+    }()
 
     private func pinToContainer(_ wv: WKWebView) {
         webContainer.addSubview(wv)
@@ -332,21 +346,65 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     }
 
     private func openInExternalBrowser() {
-        guard let url = activeWebView?.url else { return }
-        let browser = config.externalBrowser
-        let ws = NSWorkspace.shared
-        if let appURL = ws.urlForApplication(withBundleIdentifier: browser) {
-            ws.open([url], withApplicationAt: appURL, configuration: NSWorkspace.OpenConfiguration())
+        guard let wv = activeWebView else { return }
+        resolvePageURL(from: wv) { [weak self] url in
+            guard let self, let url else { return }
+            self.openURL(url, in: self.config.externalBrowser)
+        }
+    }
+
+    private func resolvePageURL(from wv: WKWebView, completion: @escaping (URL?) -> Void) {
+        if let url = wv.url, url.absoluteString != "about:blank" {
+            completion(url)
             return
         }
+        wv.evaluateJavaScript("location.href") { result, _ in
+            let href = result as? String
+            DispatchQueue.main.async {
+                completion(href.flatMap(URL.init(string:)))
+            }
+        }
+    }
+
+    private func openURL(_ url: URL, in browser: String) {
+        let ws = NSWorkspace.shared
+        let openConfig: NSWorkspace.OpenConfiguration = {
+            let cfg = NSWorkspace.OpenConfiguration()
+            cfg.activates = true
+            return cfg
+        }()
+
+        if let appURL = Self.resolveBrowserAppURL(named: browser) {
+            ws.open([url], withApplicationAt: appURL, configuration: openConfig)
+            return
+        }
+        ws.open(url, configuration: openConfig)
+    }
+
+    private static let browserBundleIDs: [String: String] = [
+        "Safari": "com.apple.Safari",
+        "Chrome": "com.google.Chrome",
+        "Google Chrome": "com.google.Chrome",
+        "Firefox": "org.mozilla.firefox",
+        "Arc": "company.thebrowser.Browser",
+        "Microsoft Edge": "com.microsoft.edgemac",
+        "Brave": "com.brave.Browser",
+    ]
+
+    private static func resolveBrowserAppURL(named browser: String) -> URL? {
+        let ws = NSWorkspace.shared
+        if browser.contains(".") {
+            if let url = ws.urlForApplication(withBundleIdentifier: browser) { return url }
+        }
+        if let bundleID = browserBundleIDs[browser],
+           let url = ws.urlForApplication(withBundleIdentifier: bundleID) { return url }
         for dir in ["/Applications", "\(NSHomeDirectory())/Applications", "/System/Applications"] {
             let path = "\(dir)/\(browser).app"
             if FileManager.default.fileExists(atPath: path) {
-                ws.open([url], withApplicationAt: URL(fileURLWithPath: path), configuration: NSWorkspace.OpenConfiguration())
-                return
+                return URL(fileURLWithPath: path)
             }
         }
-        ws.open(url)
+        return nil
     }
 
     func load(_ urlString: String) {
@@ -357,7 +415,10 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             wv.load(URLRequest(url: url))
         }
     }
-    func show()   { makeKeyAndOrderFront(nil) }
+    func show() {
+        makeKeyAndOrderFront(nil)
+        if !pickerVisible { makeFirstResponder(activeWebView) }
+    }
     func hide()   {
         if pickerVisible {
             pickerVisible = false
@@ -395,6 +456,8 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
         super.becomeKey()
         if pickerVisible {
             makeFirstResponder(pickerView.searchField)
+        } else {
+            makeFirstResponder(activeWebView)
         }
     }
 
@@ -428,8 +491,10 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     ]
 
     private func handleEditShortcut(_ ch: String, event: NSEvent) -> Bool {
-        if ch == "v", pasteboardHasConcealedMarkers(), let text = plainStringOnPasteboard() {
-            return pastePlainText(text, event: event)
+        if ch == "v", pasteboardHasConcealedMarkers(), let raw = plainStringOnPasteboard() {
+            // 1Password often adds a trailing newline; React forms submit the literal string.
+            let text = raw.trimmingCharacters(in: .newlines)
+            return pasteNormalizedPlainText(text, event: event)
         }
         let action: Selector? = switch ch {
         case "c": #selector(NSText.copy(_:))
@@ -457,29 +522,45 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
         return s
     }
 
+    /// Strip 1Password concealed markers by rewriting plain text to the pasteboard, then use
+    /// WebKit's normal paste (same effect as pasting through TextEdit first).
     @discardableResult
-    private func pastePlainText(_ text: String, event: NSEvent) -> Bool {
+    private func pasteNormalizedPlainText(_ text: String, event: NSEvent) -> Bool {
         if pickerVisible, let editor = pickerView.searchField.currentEditor() {
             editor.replaceCharacters(in: editor.selectedRange, with: text)
             return true
         }
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(text, forType: .string)
+        if NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: event) {
+            return true
+        }
+        return injectPlainTextIntoWebView(text)
+    }
+
+    @discardableResult
+    private func injectPlainTextIntoWebView(_ text: String) -> Bool {
         guard let wv = activeWebView,
               let encoded = try? JSONEncoder().encode(text),
-              let json = String(data: encoded, encoding: .utf8) else {
-            return NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: event)
-        }
+              let json = String(data: encoded, encoding: .utf8) else { return false }
         let script = """
         (function(t){
           var el=document.activeElement;
           if(!el) return false;
+          function setValue(node,val){
+            var proto=node.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;
+            var setter=Object.getOwnPropertyDescriptor(proto,'value').set;
+            setter.call(node,val);
+            node.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertFromPaste',data:val}));
+            node.dispatchEvent(new Event('change',{bubbles:true}));
+          }
           if(el.isContentEditable){document.execCommand('insertText',false,t);return true;}
           if(el.tagName==='INPUT'||el.tagName==='TEXTAREA'){
             var s=el.selectionStart!=null?el.selectionStart:el.value.length;
-            var e=el.selectionEnd!=null?el.selectionEnd:s;
-            el.value=el.value.slice(0,s)+t+el.value.slice(e);
+            var e=el.selectionEnd!=null?el.selectionEnd:el.value.length;
+            setValue(el,el.value.slice(0,s)+t+el.value.slice(e));
             el.selectionStart=el.selectionEnd=s+t.length;
-            el.dispatchEvent(new Event('input',{bubbles:true}));
-            el.dispatchEvent(new Event('change',{bubbles:true}));
             return true;
           }
           return false;

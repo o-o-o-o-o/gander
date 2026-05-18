@@ -36,7 +36,7 @@ else
     bash logic-test.sh
 fi
 
-echo "==> Packaging and installing to /Applications"
+echo "==> Packaging Gander.app (local: $(pwd)/Gander.app)"
 bash build.sh
 
 if [ "$SKIP_SMOKE" = true ]; then

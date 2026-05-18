@@ -3,7 +3,7 @@ import Foundation
 // Edit this file to update the Help panel content.
 // HTML is rendered by WKWebView; light/dark mode is handled by the CSS prefers-color-scheme query.
 enum HelpContent {
-    static func html(name: String, toggleKey: String, sitesKey: String,
+    static func html(name: String, version: String, toggleKey: String, sitesKey: String,
                      nextKey: String, prevKey: String) -> String {
         #"""
         <!DOCTYPE html>
@@ -93,6 +93,7 @@ enum HelpContent {
         <div class="header">
         <img src="greg.png" alt="Gander" onerror="this.style.display='none'">
         <h1>Gander</h1>
+        <p class="dim">Version \#(version)</p>
         </div>
 
         <h2>Keyboard Shortcuts</h2>

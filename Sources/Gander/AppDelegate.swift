@@ -181,8 +181,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let wv = WKWebView(frame: panel.contentView!.bounds)
         wv.autoresizingMask = [.width, .height]
+        wv.enableInspection()
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
         wv.loadHTMLString(HelpContent.html(
             name: name,
+            version: version,
             toggleKey: prettyHotkey(config.hotkeys.toggle),
             sitesKey:  prettyHotkey(config.hotkeys.sites),
             nextKey:   prettyHotkey(config.hotkeys.next),

@@ -8,13 +8,9 @@ build:
 run:
 	bash build.sh && open Gander.app
 
-install:
-	bash build.sh
-	rm -rf /Applications/Gander.app
-	cp -r Gander.app /Applications/Gander.app
-	/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
-		-f /Applications/Gander.app
-	@echo "✓ Installed to /Applications/Gander.app"
+install: build
+	@echo "✓ Local build: $(CURDIR)/Gander.app"
+	@echo "  Run: open Gander.app"
 
 logic-test:
 	bash logic-test.sh

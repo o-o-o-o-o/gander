@@ -9,24 +9,26 @@ shell scripts.
 ## Build & run locally
 
 ```bash
-bash publish.sh           # build + logic tests + smoke tests + install /Applications/Gander.app
-bash publish.sh --open    # same, then opens the app
+bash publish.sh           # build + logic tests + smoke tests → ./Gander.app (repo root)
+bash publish.sh --open    # same, then opens ./Gander.app
 ```
 
 ## Release
 
+Full checklist: **[RELEASE.md](RELEASE.md)** (user upgrade + maintainer ship).
+
 When asked to publish / release / ship — just do it, no confirmation needed:
 
 ```bash
-# Check current version
-git tag --sort=-v:refname | head -1
-
-# Cut a release (bump patch for fixes, minor for new features)
-bash scripts/release.sh 0.1.6
+git pull origin main
+git tag --sort=-v:refname | head -1   # latest tag
+bash scripts/release.sh 0.1.6         # patch = fix, minor = feature
+gh run list --repo o-o-o-o-o/gander --limit 3   # confirm CI + Release passed
+git pull origin main                  # CI pushes Update Cask commit — pull it
 ```
 
-After tagging: `gh run list --repo o-o-o-o-o/gander --limit 3` — confirm CI passed before
-reporting done. CI failure on Cask push has happened before (v0.1.5).
+`release.sh` requires a clean tree, runs logic tests, pushes `main`, then tags. CI failure on
+Cask push has happened before (v0.1.5) if `main` was not pushed first.
 
 ## Source layout
 
@@ -35,7 +37,7 @@ Sources/Gander/         app — NSApplication, AppDelegate, SidebarPanel, SitePi
 Sources/gander-cli/     CLI tool — posts a DistributedNotificationCenter message and exits
 scripts/release.sh      tag + push + trigger GitHub Actions
 scripts/build-release.sh CI build: compile → bundle .app → zip
-build.sh                local dev build (installs to /Applications/Gander.app)
+build.sh                local dev build → ./Gander.app (never copies to /Applications)
 logic-test.sh           unit tests for Config.swift (no app launch required)
 smoke-test.sh           integration test: launches isolated instance, exercises CLI
 Casks/gander.rb         Homebrew Cask definition (version + SHA256 auto-updated by CI)
