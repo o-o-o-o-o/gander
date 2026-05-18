@@ -78,6 +78,11 @@ activating Gander or stealing focus from the user's main app:
 
 Do not call `NSApp.activate` on click — that would break the sidebar-over-IDE workflow.
 
+**1Password direct paste:** 1Password tags copied passwords with `org.nspasteboard.ConcealedType` /
+`com.agilebits.onepassword`. WKWebView refuses that pasteboard shape; pasting into TextEdit first
+strips the markers. Fix: on ⌘V when those types are present, read plain `NSString` in AppKit and
+`evaluateJavaScript` into the focused input (same text, bypasses WebKit's concealed filter).
+
 ### Carbon `RegisterEventHotKey` for global hotkeys
 
 Alternatives considered: `CGEventTap` (requires Input Monitoring TCC permission, user dialog),

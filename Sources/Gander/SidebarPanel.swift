@@ -59,16 +59,8 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
                 self.activateShortcut(n); return nil
             }
             // Non-activating panel: active app's menu bar still owns ⌘C/⌘V unless we intercept.
-            if cmd && !shift && noExtra && self.isKeyWindow, let ch {
-                let edit: Selector? = switch ch {
-                case "c": #selector(NSText.copy(_:))
-                case "v": #selector(NSText.paste(_:))
-                case "x": #selector(NSText.cut(_:))
-                case "a": #selector(NSText.selectAll(_:))
-                default: nil
-                }
-                if let edit, NSApp.sendAction(edit, to: nil, from: event) { return nil }
-            }
+            if cmd && !shift && noExtra && self.isKeyWindow, let ch,
+               self.handleEditShortcut(ch, event: event) { return nil }
             return event
         }
 
@@ -424,6 +416,77 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
         } else {
             openURL(url)
         }
+    }
+
+    // MARK: Edit shortcuts (incl. 1Password concealed pasteboard)
+
+    /// Password managers tag clipboard data as concealed; WKWebView often ignores it unless
+    /// another app pastes first (which strips the markers). Read plain text in AppKit and inject.
+    private static let concealedPasteboardTypes: [NSPasteboard.PasteboardType] = [
+        .init("org.nspasteboard.ConcealedType"),
+        .init("com.agilebits.onepassword"),
+    ]
+
+    private func handleEditShortcut(_ ch: String, event: NSEvent) -> Bool {
+        if ch == "v", pasteboardHasConcealedMarkers(), let text = plainStringOnPasteboard() {
+            return pastePlainText(text, event: event)
+        }
+        let action: Selector? = switch ch {
+        case "c": #selector(NSText.copy(_:))
+        case "v": #selector(NSText.paste(_:))
+        case "x": #selector(NSText.cut(_:))
+        case "a": #selector(NSText.selectAll(_:))
+        default: nil
+        }
+        guard let action else { return false }
+        return NSApp.sendAction(action, to: nil, from: event)
+    }
+
+    private func pasteboardHasConcealedMarkers() -> Bool {
+        guard let types = NSPasteboard.general.types else { return false }
+        return Self.concealedPasteboardTypes.contains(where: types.contains)
+    }
+
+    private func plainStringOnPasteboard() -> String? {
+        let pb = NSPasteboard.general
+        for type in [NSPasteboard.PasteboardType.string, .init("public.utf8-plain-text")] {
+            if let s = pb.string(forType: type), !s.isEmpty { return s }
+        }
+        guard let s = pb.readObjects(forClasses: [NSString.self], options: nil)?.first as? String,
+              !s.isEmpty else { return nil }
+        return s
+    }
+
+    @discardableResult
+    private func pastePlainText(_ text: String, event: NSEvent) -> Bool {
+        if pickerVisible, let editor = pickerView.searchField.currentEditor() {
+            editor.replaceCharacters(in: editor.selectedRange, with: text)
+            return true
+        }
+        guard let wv = activeWebView,
+              let encoded = try? JSONEncoder().encode(text),
+              let json = String(data: encoded, encoding: .utf8) else {
+            return NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: event)
+        }
+        let script = """
+        (function(t){
+          var el=document.activeElement;
+          if(!el) return false;
+          if(el.isContentEditable){document.execCommand('insertText',false,t);return true;}
+          if(el.tagName==='INPUT'||el.tagName==='TEXTAREA'){
+            var s=el.selectionStart!=null?el.selectionStart:el.value.length;
+            var e=el.selectionEnd!=null?el.selectionEnd:s;
+            el.value=el.value.slice(0,s)+t+el.value.slice(e);
+            el.selectionStart=el.selectionEnd=s+t.length;
+            el.dispatchEvent(new Event('input',{bubbles:true}));
+            el.dispatchEvent(new Event('change',{bubbles:true}));
+            return true;
+          }
+          return false;
+        })(\(json));
+        """
+        wv.evaluateJavaScript(script)
+        return true
     }
 
     // NSPanel with .nonactivatingPanel can only become key if it has .titled or a toolbar.
