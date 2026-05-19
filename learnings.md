@@ -681,3 +681,121 @@ xattr -dr com.apple.quarantine /Applications/Gander.app
 
 Note: `brew install --no-quarantine` was removed from Homebrew — the flag no longer exists.
 The `xattr` approach is the only post-install workaround now.
+
+---
+
+### JSONSerialization.data(withJSONObject:) silently fails on bare strings
+
+When building the find-bar match counter, we used `JSONSerialization.data(withJSONObject: text)` to produce a safe JSON string literal to inject into JavaScript. This silently returns `nil` (or throws, swallowed by `try?`) because `JSONSerialization` only accepts a top-level Array or Dictionary — a bare String is not valid JSON at the top level per the spec.
+
+Root cause: the method's name implies "convert this object to JSON data," but the constraint is that the top-level value must be an array or dict. The failure mode is silent when using `try?`.
+
+Fix: manually escape the string for embedding in a JS string literal:
+
+```swift
+let escaped = text
+    .replacingOccurrences(of: "\\", with: "\\\\")
+    .replacingOccurrences(of: "\"", with: "\\\"")
+    .replacingOccurrences(of: "\n", with: "\\n")
+    .replacingOccurrences(of: "\r", with: "\\r")
+let js = "const t = \"\(escaped)\";"
+```
+
+Alternatively, use `JSONEncoder().encode(text)` which does handle bare strings, or wrap in an array and strip the brackets.
+
+---
+
+### WKWebView find-in-page on macOS: what works and what doesn't
+
+Several APIs look like they should work for in-page search but don't on macOS native (AppKit):
+
+**`findInteractionEnabled` / `WKFindInteraction` / `UIFindInteraction` — iOS only.**
+Despite appearing in WKWebView documentation, these are UIKit APIs (note the `UI` prefix).
+They are available on iOS 16+, iPadOS 16+, and Mac Catalyst — but NOT native macOS. The
+Swift compiler will error: `value of type 'WKWebView' has no member 'findInteraction'`.
+
+**`performTextFinderAction(_:)` / `NSTextFinderClient` — silently does nothing on WKWebView.**
+NSView inherits `performTextFinderAction`, and WKWebView is advertised as supporting
+`NSTextFinderClient`. In practice, calling `performTextFinderAction` with
+`NSTextFinder.Action.showFindInterface` on a WKWebView does not show any UI. The call
+succeeds but nothing happens.
+
+**The correct macOS approach: `WKWebView.find(_:configuration:completionHandler:)`**
+This is the public API that actually works. It finds and highlights text in the page,
+scrolls to the match, and calls the completion with `WKFindResult`. Use `WKFindConfiguration`
+to set `backwards`, `wraps`, and `caseSensitive`.
+
+Key limitations of this API:
+- `WKFindResult` only has `matchFound: Bool` — no match count, no current index.
+- There is no `clearMatches()` or equivalent public API.
+- Match count requires a separate JS call (`document.body.innerText.match(re)?.length`).
+- "X of Y" position tracking is not directly supported; you'd have to count navigations
+  manually, which can drift if the page content changes.
+
+**Highlight color: inject `::selection` CSS.**
+`WKWebView.find()` creates a native text selection on the found text. The `::selection`
+CSS pseudo-element applies to that selection, so injecting a style tag with
+`*::selection { background: rgba(255,140,0,.75) !important; }` gives a more prominent,
+custom highlight color. Inject on find-bar open, remove on close.
+
+**Custom find bar: overlay at bottom of webContainer.**
+Since there is no built-in find UI on macOS, implement a custom `NSView` overlay pinned
+to the bottom of the webContainer. Use `NSSearchField` with `NSSearchFieldDelegate` for
+live search (`controlTextDidChange`), plus prev/next buttons and a status label.
+`NSVisualEffectView` with `.hudWindow` material gives a native frosted-glass background.
+
+---
+
+### `WKWebView.url` can be `about:blank` even when a real page is loaded
+
+`WKWebView.url` sometimes returns `about:blank` (or nil) on a page that visually appears fully
+loaded — observed particularly on pages that redirect or that use history.pushState. Do not rely
+on `wv.url` alone when you need the current page URL (e.g. for "Open in browser").
+
+Fix: fall back to `evaluateJavaScript("location.href")` if `wv.url` is nil or `about:blank`:
+
+```swift
+func resolvePageURL(from wv: WKWebView, completion: @escaping (URL?) -> Void) {
+    if let url = wv.url, url.absoluteString != "about:blank" { completion(url); return }
+    wv.evaluateJavaScript("location.href") { result, _ in
+        DispatchQueue.main.async { completion((result as? String).flatMap(URL.init(string:))) }
+    }
+}
+```
+
+---
+
+### Injecting text into WKWebView active elements via JavaScript
+
+When normal AppKit paste fails (e.g. concealed pasteboard), you can inject text directly into
+the focused DOM element via `evaluateJavaScript`. Use `JSONEncoder` to safely encode the string:
+
+```swift
+guard let encoded = try? JSONEncoder().encode(text),
+      let json = String(data: encoded, encoding: .utf8) else { return }
+let script = """
+(function(t) {
+    var el = document.activeElement;
+    if (!el) return false;
+    if (el.isContentEditable) {
+        document.execCommand('insertText', false, t); return true;
+    }
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+        var s = el.selectionStart ?? el.value.length;
+        var e = el.selectionEnd ?? s;
+        el.value = el.value.slice(0, s) + t + el.value.slice(e);
+        el.selectionStart = el.selectionEnd = s + t.length;
+        el.dispatchEvent(new Event('input', {bubbles: true}));
+        el.dispatchEvent(new Event('change', {bubbles: true}));
+        return true;
+    }
+    return false;
+})(\(json))
+"""
+wv.evaluateJavaScript(script) { _, _ in }
+```
+
+`document.execCommand('insertText', false, t)` is the only reliable way to insert into
+contentEditable elements — direct DOM manipulation doesn't fire framework change events
+(React, Vue, etc. won't see the change). For INPUT/TEXTAREA, dispatch both `input` and
+`change` events so frameworks pick up the new value.
