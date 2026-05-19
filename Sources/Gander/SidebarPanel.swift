@@ -18,6 +18,7 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     private var pickerView:              SitePickerView!
     private var pickerHeightConstraint:  NSLayoutConstraint!
     private var pickerVisible = false
+    private var findBar: FindBarView?
 
     // Site cycling
     private var activeSiteIndex: Int = 0
@@ -62,6 +63,11 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
                 self.activateShortcut(n); return nil
             }
             // Non-activating panel: active app's menu bar still owns ⌘C/⌘V unless we intercept.
+            if event.keyCode == 53 && self.findBar != nil { self.hideFindBar(); return nil }
+            if cmd && !shift && noExtra && ch == "f" { self.showFindBar(); return nil }
+            if cmd && noExtra && ch == "g" && self.findBar != nil {
+                self.doFind(self.findBar!.searchText, backwards: shift); return nil
+            }
             if cmd && !shift && noExtra && self.isKeyWindow, let ch,
                self.handleEditShortcut(ch, event: event) { return nil }
             return event
@@ -299,6 +305,8 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
 
     private func activateWebView(_ wv: WKWebView, key: String, animated: Bool) {
         guard key != activeKey else { return }
+        findBar?.removeFromSuperview()
+        findBar = nil
         if let old = activeKey.flatMap({ sessions[$0] }) {
             old.removeFromSuperview()
         }
@@ -579,6 +587,86 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
         else { super.keyDown(with: event) }
     }
 
+    // MARK: Find bar
+
+    private func showFindBar() {
+        if findBar == nil {
+            let bar = FindBarView()
+            bar.translatesAutoresizingMaskIntoConstraints = false
+            bar.onFind       = { [weak self] text, backwards in self?.doFind(text, backwards: backwards) }
+            bar.onTextChange = { [weak self] text in self?.countMatches(text) }
+            bar.onClose      = { [weak self] in self?.hideFindBar() }
+            webContainer.addSubview(bar)
+            NSLayoutConstraint.activate([
+                bar.bottomAnchor.constraint(equalTo: webContainer.bottomAnchor),
+                bar.leadingAnchor.constraint(equalTo: webContainer.leadingAnchor),
+                bar.trailingAnchor.constraint(equalTo: webContainer.trailingAnchor),
+                bar.heightAnchor.constraint(equalToConstant: 40),
+            ])
+            findBar = bar
+            injectFindCSS()
+        }
+        makeFirstResponder(findBar?.searchField)
+    }
+
+    private func hideFindBar() {
+        removeFindCSS()
+        findBar?.removeFromSuperview()
+        findBar = nil
+        makeFirstResponder(activeWebView)
+    }
+
+    private func doFind(_ text: String, backwards: Bool) {
+        guard !text.isEmpty, let wv = activeWebView else { return }
+        let cfg = WKFindConfiguration()
+        cfg.backwards = backwards
+        cfg.wraps = true
+        cfg.caseSensitive = false
+        wv.find(text, configuration: cfg) { [weak self] result in
+            if !result.matchFound { self?.findBar?.showStatus("No results", isError: true) }
+        }
+    }
+
+    private func countMatches(_ text: String) {
+        guard !text.isEmpty else { findBar?.showStatus("", isError: false); return }
+        guard let wv = activeWebView else { return }
+        let escaped = text
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+        let js = #"""
+        (() => { try {
+            const t = "\#(escaped)";
+            const re = new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+            return ((document.body && document.body.innerText) || '').match(re)?.length || 0;
+        } catch(e) { return 0; } })()
+        """#
+        wv.evaluateJavaScript(js) { [weak self] result, _ in
+            let n = (result as? NSNumber)?.intValue ?? 0
+            let label = n == 0 ? "No results" : "\(n) match\(n == 1 ? "" : "es")"
+            self?.findBar?.showStatus(label, isError: n == 0)
+        }
+    }
+
+    private func injectFindCSS() {
+        guard let wv = activeWebView else { return }
+        let js = #"""
+        (() => {
+            if (document.getElementById('_gf')) return;
+            const s = document.createElement('style');
+            s.id = '_gf';
+            s.textContent = '*::selection{background:rgba(255,140,0,.75)!important;color:inherit!important}';
+            (document.head || document.documentElement).appendChild(s);
+        })()
+        """#
+        wv.evaluateJavaScript(js) { _, _ in }
+    }
+
+    private func removeFindCSS() {
+        activeWebView?.evaluateJavaScript("document.getElementById('_gf')?.remove()") { _, _ in }
+    }
+
     // MARK: Chrome — toolbar & color stripe
 
     private func setupToolbar() {
@@ -616,4 +704,97 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     @objc private func goBack()    { activeWebView?.goBack() }
     @objc private func goForward() { activeWebView?.goForward() }
     @objc func toggleSitePicker() { pickerVisible ? hideSitePicker() : showSitePicker() }
+}
+
+private final class FindBarView: NSView, NSSearchFieldDelegate {
+    private let field  = NSSearchField()
+    private let status = NSTextField(labelWithString: "")
+    var onFind:       ((String, Bool) -> Void)?
+    var onTextChange: ((String) -> Void)?
+    var onClose:      (() -> Void)?
+    var searchText:  String        { field.stringValue }
+    var searchField: NSSearchField { field }
+
+    override init(frame: NSRect) { super.init(frame: frame); setup() }
+    required init?(coder: NSCoder) { nil }
+
+    func controlTextDidChange(_ obj: Notification) {
+        let text = field.stringValue
+        status.stringValue = ""
+        onFind?(text, false)
+        onTextChange?(text)
+    }
+
+    func showStatus(_ text: String, isError: Bool) {
+        status.stringValue = text
+        status.textColor = isError ? .systemRed : .secondaryLabelColor
+    }
+
+    private func setup() {
+        let bg = NSVisualEffectView()
+        bg.material = .hudWindow
+        bg.blendingMode = .withinWindow
+        bg.state = .active
+        bg.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(bg)
+
+        let border = NSView()
+        border.wantsLayer = true
+        border.layer?.backgroundColor = NSColor.separatorColor.cgColor
+        border.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(border)
+
+        field.delegate = self
+        field.target = self
+        field.action = #selector(findNext)
+        field.placeholderString = "Find in page…"
+        field.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(field)
+
+        status.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        status.textColor = .secondaryLabelColor
+        status.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(status)
+
+        func btn(_ sym: String, _ desc: String, _ sel: Selector) -> NSButton {
+            let b = NSButton()
+            b.image = NSImage(systemSymbolName: sym, accessibilityDescription: desc)
+            b.isBordered = false
+            b.target = self
+            b.action = sel
+            b.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(b)
+            return b
+        }
+        let prev  = btn("chevron.up",   "Previous", #selector(findPrev))
+        let next  = btn("chevron.down", "Next",     #selector(findNext))
+        let close = btn("xmark",        "Close",    #selector(closeBar))
+
+        NSLayoutConstraint.activate([
+            bg.topAnchor.constraint(equalTo: topAnchor),
+            bg.bottomAnchor.constraint(equalTo: bottomAnchor),
+            bg.leadingAnchor.constraint(equalTo: leadingAnchor),
+            bg.trailingAnchor.constraint(equalTo: trailingAnchor),
+            border.topAnchor.constraint(equalTo: topAnchor),
+            border.leadingAnchor.constraint(equalTo: leadingAnchor),
+            border.trailingAnchor.constraint(equalTo: trailingAnchor),
+            border.heightAnchor.constraint(equalToConstant: 1),
+            field.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            field.centerYAnchor.constraint(equalTo: centerYAnchor),
+            field.widthAnchor.constraint(equalToConstant: 160),
+            status.leadingAnchor.constraint(equalTo: field.trailingAnchor, constant: 6),
+            status.centerYAnchor.constraint(equalTo: centerYAnchor),
+            status.widthAnchor.constraint(equalToConstant: 72),
+            prev.leadingAnchor.constraint(equalTo: status.trailingAnchor, constant: 4),
+            prev.centerYAnchor.constraint(equalTo: centerYAnchor),
+            next.leadingAnchor.constraint(equalTo: prev.trailingAnchor, constant: 2),
+            next.centerYAnchor.constraint(equalTo: centerYAnchor),
+            close.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            close.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
+
+    @objc private func findNext() { onFind?(field.stringValue, false) }
+    @objc private func findPrev() { onFind?(field.stringValue, true) }
+    @objc private func closeBar() { onClose?() }
 }
