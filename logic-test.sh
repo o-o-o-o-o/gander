@@ -121,25 +121,64 @@ struct LogicTests {
                "default and work toggle notifications must not collide")
 
         // ── FrameConfig.isEmpty ───────────────────────────────────────────────
-        let emptyFrame = FrameConfig(x: nil, y: nil, width: nil, height: nil)
-        let partialFrame = FrameConfig(x: 10, y: nil, width: nil, height: nil)
-        expect(emptyFrame.isEmpty   == true,  "FrameConfig: all-nil is empty")
-        expect(partialFrame.isEmpty == false, "FrameConfig: any non-nil is not empty")
+        let emptyFrame = FrameConfig(preset: nil, x: nil, y: nil, width: nil, height: nil)
+        let presetFrame = FrameConfig(preset: "laptop", x: nil, y: nil, width: nil, height: nil)
+        expect(emptyFrame.isEmpty    == true,  "FrameConfig: all-nil is empty")
+        expect(presetFrame.isEmpty   == false, "FrameConfig: preset name is not empty")
 
-        // ── initialFrame: configured values take precedence ───────────────────
+        // ── FrameDimension / FrameAxis parsing ────────────────────────────────
+        expect(FrameDimension.parse("100%") == .percent(100), "parse 100%")
+        expect(FrameDimension.parse("full") == .percent(100), "parse full")
+        expect(FrameDimension.parse("420") == .points(420), "parse points")
+        expect(FrameAxis.parse("right") == .right, "parse right anchor")
+        expect(FrameAxis.parse("bottom") == .bottom, "parse bottom anchor")
+
+        let visible = CGRect(x: 100, y: 50, width: 1600, height: 900)
+        let laptopPreset = FramePreset(
+            width: .percent(30),
+            height: .percent(100),
+            x: .right,
+            y: .bottom
+        )
+        let resolved = FrameResolver.computedRect(laptopPreset, visible: visible, fallbackWidth: 420)
+        expect(resolved.width == 480, "30% width of 1600")
+        expect(resolved.height == 900, "100% height")
+        expect(resolved.maxX == visible.maxX, "right anchor")
+        expect(resolved.minY == visible.minY, "bottom anchor")
+
+        // ── frameAuto matching ────────────────────────────────────────────────
+        let auto = FrameAutoConfig(match: [
+            FrameAutoMatch(screenCount: 1, screenCountMin: nil, frame: "laptop"),
+            FrameAutoMatch(screenCount: nil, screenCountMin: 2, frame: "studio"),
+        ])
+        expect(auto.presetName(forScreenCount: 1) == "laptop", "auto: one screen → laptop")
+        expect(auto.presetName(forScreenCount: 2) == "studio", "auto: two screens → studio")
+
+        // ── initialFrame: legacy root fields ──────────────────────────────────
         if let screen = NSScreen.main {
             let config = AppConfig(width: 460, height: 900, x: 55, y: 40)
+            let expected = FrameResolver.computedRect(config.legacyDefaultPreset(),
+                                                      on: screen, fallbackWidth: 460)
             let frame = config.initialFrame(on: screen)
-            expect(frame.origin.x    == 55,  "initialFrame: x should use configured value")
-            expect(frame.origin.y    == 40,  "initialFrame: y should use configured value")
-            expect(frame.size.width  == 460, "initialFrame: width should use configured value")
-            expect(frame.size.height == 900, "initialFrame: height should use configured value")
+            expect(frame == expected, "initialFrame: legacy root fields match resolved preset")
 
-            // When height is omitted the frame should fill the visible screen height
             let noHeight = AppConfig(width: 420)
             let autoFrame = noHeight.initialFrame(on: screen)
             expect(autoFrame.size.height == screen.visibleFrame.height,
                    "initialFrame: omitted height should fill visible screen height")
+
+            let named = AppConfig(
+                frames: [
+                    "laptop": FramePreset(width: .points(360), height: .percent(100), x: .right, y: .bottom),
+                ],
+                frameAuto: FrameAutoConfig(match: [
+                    FrameAutoMatch(screenCount: 1, screenCountMin: nil, frame: "laptop"),
+                ])
+            )
+            expect(named.launchPresetName(screenCount: 1) == "laptop",
+                   "launch preset from frameAuto")
+            let namedFrame = named.initialFrame(on: screen)
+            expect(namedFrame.size.width == 360, "named preset width")
         }
 
         print("==> Logic tests passed")
@@ -149,5 +188,6 @@ SWIFT
 
 PROJECT_DIR="$(pwd)"
 # Compile from TMP_DIR so swiftc's intermediate .o files go there, not the project root.
-(cd "${TMP_DIR}" && swiftc "${PROJECT_DIR}/Sources/Gander/Config.swift" "${RUNNER}" -o "${BIN}")
+(cd "${TMP_DIR}" && swiftc "${PROJECT_DIR}/Sources/Gander/Config.swift" \
+    "${PROJECT_DIR}/Sources/Gander/FrameLayout.swift" "${RUNNER}" -o "${BIN}")
 "${BIN}"

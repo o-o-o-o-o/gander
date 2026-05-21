@@ -15,34 +15,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var prevHotkey:   EventHotKeyRef?
     private var carbonHandler: EventHandlerRef?
 
+    private var lastScreenCount: Int = 0
+    private var layoutDebounce: DispatchWorkItem?
+
     init(config: AppConfig) {
         self.config = config
     }
 
-    // Two overloads: IPC notifications carry userInfo dicts; URL scheme carries URLComponents.
-    // Both extract the same four optional doubles — kept separate to avoid a bridging layer.
+    // IPC notifications and URL scheme both map to FrameConfig (preset name and/or dimension strings).
     private func frameConfig(from userInfo: [AnyHashable: Any]?) -> FrameConfig {
-        func read(_ key: String) -> Double? {
+        func readString(_ key: String) -> String? {
             guard let raw = userInfo?[key] else { return nil }
-            if let number = raw as? NSNumber { return number.doubleValue }
-            if let text = raw as? String { return Double(text) }
+            if let text = raw as? String { return text }
+            if let number = raw as? NSNumber { return String(number.doubleValue) }
             return nil
         }
 
-        return FrameConfig(x: read("x"),
-                           y: read("y"),
-                           width: read("width"),
-                           height: read("height"))
+        return FrameConfig(preset: userInfo?["preset"] as? String,
+                           x: readString("x"),
+                           y: readString("y"),
+                           width: readString("width"),
+                           height: readString("height"))
     }
 
     private func frameConfig(from components: URLComponents?) -> FrameConfig {
-        func read(_ key: String) -> Double? {
-            components?.queryItems?.first(where: { $0.name == key }).flatMap { item in
-                item.value.flatMap(Double.init)
-            }
+        func read(_ key: String) -> String? {
+            components?.queryItems?.first(where: { $0.name == key }).flatMap { $0.value }
         }
 
-        return FrameConfig(x: read("x"),
+        return FrameConfig(preset: read("preset"),
+                           x: read("x"),
                            y: read("y"),
                            width: read("width"),
                            height: read("height"))
@@ -57,6 +59,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setupGlobalHotkeys()
         setupIPC()
         setupURLScheme()
+        setupFrameAuto()
+    }
+
+    private func setupFrameAuto() {
+        guard config.frameAuto != nil else { return }
+        lastScreenCount = NSScreen.screens.count
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(screenParametersChanged),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
+    }
+
+    @objc private func screenParametersChanged() {
+        layoutDebounce?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.handleDisplayLayoutChange() }
+        layoutDebounce = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: work)
+    }
+
+    private func handleDisplayLayoutChange() {
+        guard config.frameAuto != nil, let panel else { return }
+        let count = NSScreen.screens.count
+        let countChanged = count != lastScreenCount
+        lastScreenCount = count
+
+        if countChanged || config.frameAuto?.onLayoutChange == true {
+            panel.applyAutoFrameForCurrentDisplays()
+        }
     }
 
     /// Standard Edit menu — never shown (accessory app) but required so ⌘C/⌘V route to the

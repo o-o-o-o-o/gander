@@ -66,10 +66,42 @@ All fields are optional — omit any you don't need. `name` defaults to `"defaul
 | `height`     | number | Window height in points. Default: visible screen height.      |
 | `x`          | number | Left edge in screen points. Default: right edge placement.    |
 | `y`          | number | Bottom edge in screen points. Default: visible screen bottom. |
-| `defaultUrl` | string | URL loaded on first launch.                                   |
+| `defaultUrl` | string | URL loaded on launch and with ⌘0.                             |
 | `sites`      | array  | Site list shown in the picker (⌘⇧/).                          |
 
 If `height`, `x`, or `y` are omitted, Gander preserves the current default behavior: full visible screen height, aligned to the right edge, starting at the bottom of the visible screen.
+
+### Named frames (laptop / studio)
+
+Use `frames` for presets and `frameAuto` to switch when displays are connected or disconnected. Sizes can be points (`420`) or percentages (`"30%"`, `"100%"`, `"full"`). Position can be points, `"right"` / `"bottom"`, etc.
+
+```json
+{
+  "frame": "studio",
+  "frames": {
+    "laptop": {
+      "width": "30%",
+      "height": "100%",
+      "x": "right",
+      "y": "bottom"
+    },
+    "studio": {
+      "width": 420,
+      "height": "100%",
+      "x": "right",
+      "y": "bottom"
+    }
+  },
+  "frameAuto": {
+    "match": [
+      { "screenCount": 1, "frame": "laptop" },
+      { "screenCountMin": 2, "frame": "studio" }
+    ]
+  }
+}
+```
+
+When the display layout changes (dock / undock), Gander applies the matching preset on the **main** screen (menu bar display). Legacy top-level `width` / `height` / `x` / `y` still work as a `"default"` preset when `frames` is omitted.
 
 When you open a URL that is not already listed in `sites`, Gander adds it to the picker temporarily and labels it as temporary. If the URL matches a configured site, Gander reuses that configured entry instead of creating a duplicate.
 
@@ -83,6 +115,7 @@ When you open a URL that is not already listed in `sites`, Gander adds it to the
 | `⌘⇧/`     | Open site picker (fuzzy search)               |
 | `⌘⇧]`     | Next site                                     |
 | `⌘⇧[`     | Previous site                                 |
+| `⌘0`      | Open `defaultUrl`                             |
 | `⌘1`–`⌘9` | Jump to pinned site (when `pinned` is set)   |
 | `⌘R`      | Reload page (when sidebar is focused)         |
 | `⌘⇧O`     | Open current page in external browser         |
@@ -110,6 +143,8 @@ gander show
 gander show --width 480 --height 900
 gander hide
 gander open https://example.com
+gander frame laptop
+gander frame --width 30% --height 100%
 gander frame --x 80 --y 40 --width 420 --height 1000
 
 # Named instance
@@ -117,7 +152,7 @@ gander work toggle
 gander work open https://github.com --width 500
 ```
 
-`show` and `open` accept optional `--x`, `--y`, `--width`, and `--height` overrides. `frame` updates only the window placement and size.
+`show` and `open` accept optional `--x`, `--y`, `--width`, and `--height` overrides (points, `30%`, or `full` / `100%`). `frame` applies a named preset or partial overrides.
 
 Can be called from shell scripts, Makefiles, or any tool that runs shell commands.
 

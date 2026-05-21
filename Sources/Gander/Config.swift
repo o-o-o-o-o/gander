@@ -65,17 +65,6 @@ struct SiteConfig: Codable {
     }
 }
 
-struct FrameConfig {
-    var x: Double?
-    var y: Double?
-    var width: Double?
-    var height: Double?
-
-    var isEmpty: Bool {
-        x == nil && y == nil && width == nil && height == nil
-    }
-}
-
 struct AppConfig: Codable {
     var name: String
     var color: String?       // hex, e.g. "#4A90D9"
@@ -83,6 +72,9 @@ struct AppConfig: Codable {
     var height: Double?
     var x: Double?
     var y: Double?
+    var frame: String?           // active preset name
+    var frames: [String: FramePreset]?
+    var frameAuto: FrameAutoConfig?
     var defaultUrl: String
     var chrome: Bool            // false = no title bar or toolbar, keyboard-only nav
     var stripeHeight: Double    // height of the color stripe in points; 0 = no stripe
@@ -108,16 +100,22 @@ struct AppConfig: Codable {
         pinned          = rawPinned.flatMap { ["auto", "manual"].contains($0) ? $0 : nil }
         hotkeys      = (try? c.decode(HotkeysConfig.self,   forKey: .hotkeys))      ?? HotkeysConfig()
         sites        = (try? c.decode([SiteConfig].self,    forKey: .sites))        ?? AppConfig.builtinSites
+        frame        = try? c.decode(String.self,            forKey: .frame)
+        frames       = try? c.decode([String: FramePreset].self, forKey: .frames)
+        frameAuto    = try? c.decode(FrameAutoConfig.self, forKey: .frameAuto)
     }
 
     init(name: String = "default", color: String? = nil, width: Double = 420,
          height: Double? = nil, x: Double? = nil, y: Double? = nil,
+         frame: String? = nil, frames: [String: FramePreset]? = nil,
+         frameAuto: FrameAutoConfig? = nil,
          defaultUrl: String = "https://google.com", chrome: Bool = true,
          stripeHeight: Double = 3, externalBrowser: String = "Safari",
          pinned: String? = nil, hotkeys: HotkeysConfig = HotkeysConfig(),
          sites: [SiteConfig] = AppConfig.builtinSites) {
         self.name = name; self.color = color; self.width = width
         self.height = height; self.x = x; self.y = y
+        self.frame = frame; self.frames = frames; self.frameAuto = frameAuto
         self.defaultUrl = defaultUrl; self.chrome = chrome
         self.stripeHeight = stripeHeight; self.externalBrowser = externalBrowser
         self.pinned = pinned; self.hotkeys = hotkeys; self.sites = sites
@@ -149,13 +147,39 @@ struct AppConfig: Codable {
     var notifPrev:    Notification.Name { .init("com.gander.\(name).prev") }
     var notifMenuBar: Notification.Name { .init("com.gander.\(name).menubar") }
 
+    /// Preset used at launch: `frameAuto` match for current screen count, then `frame`, then legacy root fields.
+    func launchPresetName(screenCount: Int) -> String {
+        if let auto = frameAuto?.presetName(forScreenCount: screenCount) {
+            return auto
+        }
+        if let frame { return frame }
+        return "default"
+    }
+
+    func legacyDefaultPreset() -> FramePreset {
+        var preset = FramePreset(width: .points(width))
+        if let height { preset.height = .points(height) }
+        else { preset.height = .percent(100) }
+        if let x { preset.x = .points(x) } else { preset.x = .right }
+        if let y { preset.y = .points(y) } else { preset.y = .bottom }
+        return preset
+    }
+
+    func preset(named name: String) -> FramePreset? {
+        if let p = frames?[name] { return p }
+        if name == "default" { return legacyDefaultPreset() }
+        return nil
+    }
+
+    func resolveFrame(preset name: String, on screen: NSScreen) -> NSRect? {
+        guard let preset = preset(named: name) else { return nil }
+        return FrameResolver.computedRect(preset, on: screen, fallbackWidth: CGFloat(width))
+    }
+
     func initialFrame(on screen: NSScreen) -> NSRect {
-        let visible = screen.visibleFrame
-        let resolvedWidth = CGFloat(width)
-        let resolvedHeight = CGFloat(height ?? visible.height)
-        let resolvedX = CGFloat(x ?? (visible.maxX - resolvedWidth))
-        let resolvedY = CGFloat(y ?? visible.minY)
-        return NSRect(x: resolvedX, y: resolvedY, width: resolvedWidth, height: resolvedHeight)
+        let name = launchPresetName(screenCount: NSScreen.screens.count)
+        if let rect = resolveFrame(preset: name, on: screen) { return rect }
+        return FrameResolver.computedRect(legacyDefaultPreset(), on: screen, fallbackWidth: CGFloat(width))
     }
 
     static func load(from path: String) throws -> AppConfig {

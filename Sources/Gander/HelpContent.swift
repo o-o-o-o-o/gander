@@ -104,6 +104,7 @@ enum HelpContent {
         <tr><td>\#(prevKey)</td><td>Previous site</td></tr>
         <tr><td>⌘R</td><td>Reload page</td></tr>
         <tr><td>⌘⇧O</td><td>Open current page in external browser</td></tr>
+        <tr><td>⌘0</td><td>Open <code>defaultUrl</code> from config</td></tr>
         <tr><td>⌘1 – ⌘9</td><td>Jump to pinned site (when configured)</td></tr>
         </table>
         <p style="margin-top:10px"><strong>In site picker</strong></p>
@@ -121,12 +122,12 @@ enum HelpContent {
         gander \#(name) next / prev
         gander \#(name) open &lt;url&gt;
         gander \#(name) open &lt;url&gt; --shortcut &lt;1–9&gt;
-        gander \#(name) frame --x &lt;n&gt; --y &lt;n&gt; --width &lt;n&gt; --height &lt;n&gt;
+        gander \#(name) frame &lt;preset&gt; [--x v --y v --width v --height v]
         gander menubar                         restore hidden menu bar icon</pre>
         <p class="dim" style="margin-top:4px">Examples</p>
-        <pre>gander \#(name) open https://github.com/search?q=swift
-        gander \#(name) open https://example.com --shortcut 3
-        gander \#(name) frame --x 0 --y 0 --width 420 --height 900</pre>
+        <pre>gander \#(name) frame laptop
+        gander \#(name) frame --width 30% --height 100%
+        gander \#(name) open https://example.com --shortcut 3</pre>
 
         <h2>URL Scheme</h2>
         <pre>gander://\#(name)/toggle

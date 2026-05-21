@@ -8,24 +8,26 @@
 //   gander sites
 //   gander open https://example.com
 //   gander show --width 480 --height 900
-//   gander frame --x 80 --y 40 --width 420 --height 1000
+//   gander frame laptop
+//   gander frame --width 30% --height 100%
 //   gander work toggle
-//   gander work sites
 
 import Foundation
 
 struct FrameOptions {
-    var x: Double?
-    var y: Double?
-    var width: Double?
-    var height: Double?
+    var preset: String?
+    var x: String?
+    var y: String?
+    var width: String?
+    var height: String?
 
     var isEmpty: Bool {
-        x == nil && y == nil && width == nil && height == nil
+        preset == nil && x == nil && y == nil && width == nil && height == nil
     }
 
     func asUserInfo() -> [String: Any] {
         var userInfo: [String: Any] = [:]
+        if let preset { userInfo["preset"] = preset }
         if let x { userInfo["x"] = x }
         if let y { userInfo["y"] = y }
         if let width { userInfo["width"] = width }
@@ -38,23 +40,28 @@ func usage() -> String {
     """
     Usage:
       gander [instance] toggle
-      gander [instance] show [--x n --y n --width n --height n]
+      gander [instance] show [--x v --y v --width v --height v]
       gander [instance] hide
       gander [instance] sites
       gander [instance] next
       gander [instance] prev
-      gander [instance] open <url> [--shortcut 1-9] [--x n --y n --width n --height n]
-      gander [instance] frame --x n --y n --width n --height n
+      gander [instance] open <url> [--shortcut 1-9] [--x v --y v --width v --height v]
+      gander [instance] frame <preset> [--x v --y v --width v --height v]
+      gander [instance] frame --x v --y v --width v --height v
       gander [instance] menubar
+
+    Dimension values: points (420), percent (30%), or full/max/100% for height/width.
+    Position: points, percent, or right/left/bottom/top for --x/--y.
     """
 }
 
-func parseDoubleOption(name: String, rawValue: String) -> Double {
-    guard let value = Double(rawValue) else {
-        fputs("gander: '\(name)' requires a numeric value\n\(usage())\n", stderr)
+func parseFrameValue(name: String, rawValue: String) -> String {
+    let v = rawValue.trimmingCharacters(in: .whitespaces)
+    if v.isEmpty {
+        fputs("gander: '\(name)' requires a value\n\(usage())\n", stderr)
         exit(1)
     }
-    return value
+    return v
 }
 
 func parseURLAndFrame(_ args: [String], requiresURL: Bool) -> (String?, FrameOptions) {
@@ -71,7 +78,7 @@ func parseURLAndFrame(_ args: [String], requiresURL: Bool) -> (String?, FrameOpt
                 fputs("gander: '\(arg)' requires a value\n\(usage())\n", stderr)
                 exit(1)
             }
-            let value = parseDoubleOption(name: arg, rawValue: args[index])
+            let value = parseFrameValue(name: arg, rawValue: args[index])
             switch arg {
             case "--x": frame.x = value
             case "--y": frame.y = value
@@ -86,6 +93,8 @@ func parseURLAndFrame(_ args: [String], requiresURL: Bool) -> (String?, FrameOpt
             }
             if requiresURL && url == nil {
                 url = arg
+            } else if frame.preset == nil && !requiresURL {
+                frame.preset = arg
             } else {
                 fputs("gander: unexpected argument '\(arg)'\n\(usage())\n", stderr)
                 exit(1)
@@ -136,7 +145,6 @@ case "next":
 case "prev":
     nc.postNotificationName(.init("\(prefix).prev"), object: nil, deliverImmediately: true)
 case "open":
-    // Extract --shortcut before passing remaining args to parseURLAndFrame
     var remainingArgs: [String] = []
     var shortcut: Int? = nil
     var i = 0
@@ -166,7 +174,7 @@ case "open":
 case "frame":
     let (_, frame) = parseURLAndFrame(args, requiresURL: false)
     guard !frame.isEmpty else {
-        fputs("gander: 'frame' requires at least one of --x, --y, --width, or --height\n\(usage())\n", stderr)
+        fputs("gander: 'frame' requires a preset name or at least one of --x, --y, --width, --height\n\(usage())\n", stderr)
         exit(1)
     }
     nc.postNotificationName(.init("\(prefix).frame"), object: nil,
@@ -178,6 +186,4 @@ default:
     exit(1)
 }
 
-// DistributedNotificationCenter delivery is async — the process must stay alive
-// long enough for the OS to route the notification before exit(0) fires.
 Thread.sleep(forTimeInterval: 0.15)

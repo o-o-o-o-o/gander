@@ -33,7 +33,7 @@ Cask push has happened before (v0.1.5) if `main` was not pushed first.
 ## Source layout
 
 ```
-Sources/Gander/         app — NSApplication, AppDelegate, SidebarPanel, SitePicker, Config, Help
+Sources/Gander/         app — AppDelegate, SidebarPanel, SitePicker, Config, FrameLayout, Help
 Sources/gander-cli/     CLI tool — posts a DistributedNotificationCenter message and exits
 scripts/release.sh      tag + push + trigger GitHub Actions
 scripts/build-release.sh CI build: compile → bundle .app → zip

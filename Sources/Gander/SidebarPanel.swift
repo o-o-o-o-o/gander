@@ -23,12 +23,15 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     // Site cycling
     private var activeSiteIndex: Int = 0
 
+    private(set) var activePresetName: String?
+
     private var titleObservation: NSKeyValueObservation?
 
     init(config: AppConfig) {
         self.config = config
 
         let screen = NSScreen.main ?? NSScreen.screens[0]
+        activePresetName = config.launchPresetName(screenCount: NSScreen.screens.count)
         let rect = config.initialFrame(on: screen)
 
         let mask: NSWindow.StyleMask = config.chrome
@@ -58,9 +61,16 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             if cmd && shift && noExtra && self.isKeyWindow && ch?.lowercased() == "o" {
                 self.openInExternalBrowser(); return nil
             }
-            if cmd && !shift && noExtra, let ch, ch.count == 1, let n = Int(ch), (1...9).contains(n),
-               self.config.pinned != nil || !self.transientShortcuts.isEmpty {
-                self.activateShortcut(n); return nil
+            if cmd && !shift && noExtra, let ch, ch.count == 1, let n = Int(ch) {
+                if n == 0 {
+                    self.openURL(self.config.defaultUrl, animated: true)
+                    return nil
+                }
+                if (1...9).contains(n),
+                   self.config.pinned != nil || !self.transientShortcuts.isEmpty {
+                    self.activateShortcut(n)
+                    return nil
+                }
             }
             // Non-activating panel: active app's menu bar still owns ⌘C/⌘V unless we intercept.
             if event.keyCode == 53 && self.findBar != nil { self.hideFindBar(); return nil }
@@ -73,12 +83,7 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             return event
         }
 
-        // Open first site on launch
-        if let first = config.sites.first {
-            switchToSite(first, animated: false)
-        } else {
-            openURL(config.defaultUrl, animated: false)
-        }
+        openURL(config.defaultUrl, animated: false)
     }
 
     private var availableSites: [SiteConfig] {
@@ -277,30 +282,32 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
         switchToSite(site, animated: animated)
     }
 
+    func applyPreset(_ name: String, on targetScreen: NSScreen? = nil) {
+        let screen = targetScreen ?? NSScreen.main ?? self.screen ?? NSScreen.screens[0]
+        guard let rect = config.resolveFrame(preset: name, on: screen) else { return }
+        activePresetName = name
+        setFrame(rect, display: true, animate: false)
+    }
+
     func applyFrame(_ frame: FrameConfig) {
+        if let preset = frame.preset {
+            applyPreset(preset)
+            return
+        }
         guard !frame.isEmpty else { return }
-        let visible = screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? frameRect(forContentRect: self.frame)
-        var next = self.frame
-
-        if let width = frame.width {
-            next.size.width = CGFloat(width)
-        }
-        if let height = frame.height {
-            next.size.height = CGFloat(height)
-        }
-        if let x = frame.x {
-            next.origin.x = CGFloat(x)
-        }
-        if let y = frame.y {
-            next.origin.y = CGFloat(y)
-        }
-
-        next.size.width = min(max(next.size.width, 240), visible.width)
-        next.size.height = min(max(next.size.height, 240), visible.height)
-        next.origin.x = min(max(next.origin.x, visible.minX), visible.maxX - next.size.width)
-        next.origin.y = min(max(next.origin.y, visible.minY), visible.maxY - next.size.height)
-
+        let screen = NSScreen.main ?? self.screen ?? NSScreen.screens[0]
+        let visible = screen.visibleFrame
+        let next = FrameResolver.applyPartial(frame, to: self.frame, visible: visible)
         setFrame(next, display: true, animate: false)
+    }
+
+    func applyAutoFrameForCurrentDisplays() {
+        let count = NSScreen.screens.count
+        let name = config.frameAuto?.presetName(forScreenCount: count)
+            ?? config.frame
+            ?? activePresetName
+            ?? config.launchPresetName(screenCount: count)
+        applyPreset(name, on: NSScreen.main)
     }
 
     private func activateWebView(_ wv: WKWebView, key: String, animated: Bool) {

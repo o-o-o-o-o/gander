@@ -27,9 +27,10 @@ AppDelegate.swift        hotkeys (Carbon), IPC (DistributedNotificationCenter),
                          URL scheme (NSAppleEventManager), menu bar, help panel
 SidebarPanel.swift       NSPanel subclass: WKWebView session pool, site picker,
                          keyboard shortcuts, external browser, frame control
+FrameLayout.swift        named frame presets, %/anchor resolution, frameAuto rules
 SitePicker.swift         frosted-glass NSView with NSTableView + NSSearchField
 Config.swift             AppConfig / SiteConfig / HotkeysConfig, canonicalURLString,
-                         NSColor hex init
+                         NSColor hex init, launch frame selection
 HelpContent.swift        self-contained HTML rendered in a WKWebView for the Help panel
 Sources/gander-cli/      thin CLI: parse args, post one DistributedNotificationCenter
                          notification, sleep 150ms to let the OS deliver it, exit
@@ -324,6 +325,40 @@ it's 1–9, then include it in the IPC `userInfo` dict as `"shortcut"`.
 Pattern to avoid: when adding a feature via two paths (URL scheme + CLI), verify both paths
 are wired up. The help panel now serves as the authoritative list of what's supported.
 
+### Named frames, relative sizing, and display auto-switch (laptop / studio)
+
+**Problem:** Fixed `width` / `height` / `x` / `y` in `~/.config/gander/default.json` are absolute
+points from one monitor. Moving between a laptop and a docked studio leaves the sidebar the wrong
+size or off-screen. `gander frame --height 0` clamps to 240pt (minimum), not “full screen”; omitting
+`--height` leaves the current height unchanged — there was no CLI way to mean “100% of visible height.”
+
+**Design:**
+
+- `frames` — named presets (`laptop`, `studio`) with dimensions as numbers (`420`) or strings
+  (`"30%"`, `"100%"`, `"full"`) and position as `"right"` / `"bottom"` or points.
+- `frameAuto.match` — rules on `screenCount` / `screenCountMin`; first match wins.
+- `NSApplication.didChangeScreenParametersNotification` — debounced ~100ms; on screen count change
+  (or `onLayoutChange: true`), re-apply the matched preset on **`NSScreen.main`** (menu bar display).
+- Single resolver: `FrameResolver.computedRect` — avoid naming a method `resolve` on `NSRect`/`CGRect`
+  context; Swift picked the wrong overload (`NSRect(dictionaryRepresentation:)`).
+
+**Launch:** `launchPresetName(screenCount:)` uses `frameAuto` first, then `"frame"`, then `"default"`.
+Geometry is resolved on `NSScreen.main`. Do **not** open `sites[0]` when `sites` is non-empty —
+use `defaultUrl` for startup and **⌘0** to return to it (`pinned` ⌘1–⌘9 stays on list sites).
+
+**CLI:** `gander frame studio` posts `preset` in IPC `userInfo`. Rebuild **both** `Gander.app` and the
+`gander` binary — Homebrew’s `/opt/homebrew/bin/gander` stays old until `brew upgrade --cask gander`;
+old CLI shows usage without `<preset>` and rejects `studio` as an unexpected argument.
+
+**Local build:** `swift build` alone updates `.build/release/` only; `bash build.sh` copies into
+`./Gander.app`. Use `bash publish.sh` before smoke-testing a release candidate.
+
+### `defaultUrl` vs first site in `sites`
+
+Startup used `if let first = config.sites.first { switchToSite(first) }` whenever the sites array
+was non-empty, so `defaultUrl` in JSON was ignored for anyone with a site list (common). Fix: always
+`openURL(config.defaultUrl)` on launch. ⌘0 uses the same URL when the panel is key (like ⌘1–⌘9).
+
 ### `nm` binary sanity check in build-release.sh
 
 The release build checks `nm "$APP_BIN" | grep AppDelegate` to confirm the right binary was
@@ -339,14 +374,32 @@ binary named `GanderApp` — which launches and exits immediately with no error.
   "name":            "default",
   "color":           "#4A90D9",
   "width":           420,
-  "height":          900,
-  "x":               20,
-  "y":               40,
   "defaultUrl":      "https://google.com",
   "chrome":          true,
   "stripeHeight":    3,
   "externalBrowser": "Safari",
   "pinned":          "auto",
+  "frame":           "studio",
+  "frames": {
+    "laptop": {
+      "width": "30%",
+      "height": "100%",
+      "x": "right",
+      "y": "bottom"
+    },
+    "studio": {
+      "width": 420,
+      "height": "100%",
+      "x": "right",
+      "y": "bottom"
+    }
+  },
+  "frameAuto": {
+    "match": [
+      { "screenCount": 1, "frame": "laptop" },
+      { "screenCountMin": 2, "frame": "studio" }
+    ]
+  },
   "hotkeys": {
     "toggle": "cmd+shift+\\",
     "sites":  "cmd+shift+/",
@@ -360,8 +413,13 @@ binary named `GanderApp` — which launches and exits immediately with no error.
 }
 ```
 
-All fields optional; defaults are sane. `pinned` accepts `"auto"` (⌘1–⌘9 for first 9 sites
-in list order), `"manual"` (per-site `shortcut: 1–9` field), or omit to disable shortcuts.
+All fields optional; defaults are sane. Legacy top-level `width` / `height` / `x` / `y` still work
+as the implicit `"default"` preset when `frames` is omitted.
+
+- **`defaultUrl`** — loaded on app launch and with **⌘0** (panel must be key window).
+- **`pinned`** — `"auto"` (⌘1–⌘9 for first 9 sites), `"manual"` (per-site `shortcut`), or omit.
+- **`frames` / `frame` / `frameAuto`** — named layouts; auto-switch on display plug/unplug via
+  `frameAuto.match` and `NSScreen.screens.count`; geometry resolved on main screen.
 
 Hotkey format: `"modifier+modifier+key"` where modifiers are `cmd`, `shift`, `option`/`alt`,
 `ctrl`. Set to `null` or `""` to disable.
