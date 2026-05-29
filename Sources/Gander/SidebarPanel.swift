@@ -223,11 +223,13 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     // MARK: Session management
 
     private func makeWebView() -> WKWebView {
-        let wv = WKWebView(frame: .zero)
+        let wv = GanderWebView(frame: .zero)
         wv.translatesAutoresizingMaskIntoConstraints = false
         // Default WKWebView UA omits "Version/… Safari/…"; some login flows reject that.
         wv.customUserAgent = Self.safariUserAgent
         wv.enableInspection()
+        wv.onOpenExternally = { [weak self] in self?.openInExternalBrowser() }
+        wv.onCopyURL        = { [weak self] in self?.copyCurrentURL() }
         return wv
     }
 
@@ -362,6 +364,15 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
         return availableSites.first {
             guard let sc = URLComponents(string: $0.url), let sh = sc.host else { return false }
             return sh == host && sc.path == comps.path
+        }
+    }
+
+    private func copyCurrentURL() {
+        guard let wv = activeWebView else { return }
+        resolvePageURL(from: wv) { url in
+            guard let url else { return }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(url.absoluteString, forType: .string)
         }
     }
 
