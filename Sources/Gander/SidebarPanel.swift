@@ -57,6 +57,8 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             let noExtra = event.modifierFlags.intersection([.option, .control]).isEmpty
             let ch = event.charactersIgnoringModifiers
             if cmd && !shift && noExtra && ch == "r" { self.activeWebView?.reload(); return nil }
+            if cmd && !shift && noExtra && ch == "[" { self.activeWebView?.goBack(); return nil }
+            if cmd && !shift && noExtra && ch == "]" { self.activeWebView?.goForward(); return nil }
             // Shift produces "O" not "o" in charactersIgnoringModifiers.
             if cmd && shift && noExtra && self.isKeyWindow && ch?.lowercased() == "o" {
                 self.openInExternalBrowser(); return nil
@@ -77,6 +79,9 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             if cmd && !shift && noExtra && ch == "f" { self.showFindBar(); return nil }
             if cmd && noExtra && ch == "g" && self.findBar != nil {
                 self.doFind(self.findBar!.searchText, backwards: shift); return nil
+            }
+            if cmd && shift && noExtra && self.isKeyWindow && ch == "z" {
+                NSApp.sendAction(Selector("redo:"), to: nil, from: event); return nil
             }
             if cmd && !shift && noExtra && self.isKeyWindow, let ch,
                self.handleEditShortcut(ch, event: event) { return nil }
@@ -516,6 +521,7 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
         case "v": #selector(NSText.paste(_:))
         case "x": #selector(NSText.cut(_:))
         case "a": #selector(NSText.selectAll(_:))
+        case "z": Selector("undo:")
         default: nil
         }
         guard let action else { return false }
