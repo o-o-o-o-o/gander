@@ -726,11 +726,9 @@ When you download an `.app` from the internet, macOS applies a quarantine extend
 1. Is the app signed with a Developer ID certificate? (requires paid Apple Developer account)
 2. Is it notarized? (submitted to Apple's servers for malware scan)
 
-If neither, Gatekeeper blocks launch and shows "cannot be opened because it is from an
-unidentified developer." The user can override via System Settings → Privacy & Security.
+If neither, Gatekeeper blocks launch and shows "cannot be opened because it is from an unidentified developer." The user can override via System Settings → Privacy & Security.
 
-Since Gander is unsigned and unnotarized, Homebrew's Cask caveats instruct users to remove
-the quarantine attribute manually after install, or approve the app via System Settings:
+Since Gander is unsigned and unnotarized, Homebrew's Cask caveats instruct users to remove the quarantine attribute manually after install, or approve the app via System Settings:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Gander.app

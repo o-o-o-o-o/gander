@@ -59,6 +59,9 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             if cmd && !shift && noExtra && ch == "r" { self.activeWebView?.reload(); return nil }
             if cmd && !shift && noExtra && ch == "[" { self.activeWebView?.goBack(); return nil }
             if cmd && !shift && noExtra && ch == "]" { self.activeWebView?.goForward(); return nil }
+            // Site cycling — no isKeyWindow guard, consistent with goBack/goForward above.
+            if cmd && shift && noExtra && ch == "[" { self.prevSite(); return nil }
+            if cmd && shift && noExtra && ch == "]" { self.nextSite(); return nil }
             // Shift produces "O" not "o" in charactersIgnoringModifiers.
             if cmd && shift && noExtra && self.isKeyWindow && ch?.lowercased() == "o" {
                 self.openInExternalBrowser(); return nil

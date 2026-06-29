@@ -27,6 +27,15 @@ For a named instance (see Multiple instances below):
 .build/release/GanderApp --config ~/.config/gander/work.json &
 ```
 
+Since Gander is unsigned and unnotarized, Homebrew's Cask caveats instruct users to remove the quarantine attribute manually after install, or approve the app via System Settings:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Gander.app
+# or: System Settings → Privacy & Security → Open Anyway
+```
+
+
+
 ---
 
 ## Config file
