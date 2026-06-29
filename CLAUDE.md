@@ -58,6 +58,20 @@ Casks/gander.rb         Homebrew Cask definition (version + SHA256 auto-updated 
 - `logic-test.sh` must use relative source paths (`Sources/Gander/Config.swift`) — absolute
   paths break in CI.
 
+- The daily app is the **Homebrew install** at `/Applications/Gander.app`. The repo-root
+  `build.sh` output is **test-only** — never copy it over `/Applications`. `build.sh` bundles
+  `gander-cli` (added v0.2.1); if an older/incomplete local build overwrites the brew copy, the
+  Cask's `gander → Contents/MacOS/gander-cli` symlink goes dangling and every external trigger
+  (CLI, `gander://`, BetterTouchTool) silently dies. Restore with `brew reinstall --cask gander`.
+
+- If a **global trigger like `fn + -` stops working**, it's almost certainly an external
+  BetterTouchTool→`gander` CLI binding, not a Gander hotkey (`fn` isn't a Carbon modifier).
+  Diagnose with `which gander` / `ls -lL /opt/homebrew/bin/gander` first, not the hotkey code.
+
+- Shortcuts that hold **Shift** must not compare against `charactersIgnoringModifiers` as-is:
+  it keeps Shift, so `⌘⇧[`→`"{"`, `⌘⇧]`→`"}"`, `⌘⇧G`→`"G"`. Compare `.lowercased()` or by
+  keyCode (see SidebarPanel's local key monitor).
+
 ## Config file
 
 `~/.config/gander/default.json` — all fields optional. See `learnings.md` for full schema.
