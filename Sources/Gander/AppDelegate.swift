@@ -14,6 +14,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var nextHotkey:   EventHotKeyRef?
     private var prevHotkey:   EventHotKeyRef?
     private var carbonHandler: EventHandlerRef?
+    private var didShowHotkeyFailureAlert = false
 
     private var lastScreenCount: Int = 0
     private var layoutDebounce: DispatchWorkItem?
@@ -285,7 +286,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func registerHotkey(_ spec: String?, id: UInt32, sig: OSType, ref: inout EventHotKeyRef?) {
         guard let spec, let (keyCode, mods) = parseHotkey(spec) else { return }
         let hkID = EventHotKeyID(signature: sig, id: id)
-        RegisterEventHotKey(keyCode, mods, hkID, GetApplicationEventTarget(), 0, &ref)
+        let status = RegisterEventHotKey(keyCode, mods, hkID, GetApplicationEventTarget(), 0, &ref)
+        guard status == noErr else {
+            fputs("Gander: failed to register hotkey '\(spec)' (id=\(id), status=\(status)).\n", stderr)
+            showHotkeyFailureAlertIfNeeded(spec: spec, id: id, status: status)
+            return
+        }
+    }
+
+    private func showHotkeyFailureAlertIfNeeded(spec: String, id: UInt32, status: OSStatus) {
+        guard id == 1, !didShowHotkeyFailureAlert else { return }
+        didShowHotkeyFailureAlert = true
+
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Global Shortcut Unavailable"
+            alert.informativeText = "Could not register \(spec) for toggling Gander (status \(status)).\n\nThis usually means another app, or another running copy of Gander, already owns that shortcut. Quit duplicate copies or change hotkeys in ~/.config/gander/default.json."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
     }
 
     private func parseHotkey(_ str: String) -> (keyCode: UInt32, mods: UInt32)? {

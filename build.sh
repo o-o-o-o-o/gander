@@ -89,6 +89,10 @@ SWIFT
 APP="Gander.app/Contents"
 mkdir -p "$APP/MacOS" "$APP/Resources"
 cp .build/release/GanderApp "$APP/MacOS/Gander"
+# gander-cli powers the `gander` CLI and the gander:// URL scheme. The Homebrew Cask
+# symlinks `gander` → Contents/MacOS/gander-cli, so omitting it here produces an app that
+# looks fine but silently breaks every external trigger (CLI, BetterTouchTool, URL scheme).
+cp .build/release/gander "$APP/MacOS/gander-cli"
 cp /tmp/Gander.icns "$APP/Resources/AppIcon.icns"
 cp /tmp/greg_template.png "$APP/Resources/greg.png"
 

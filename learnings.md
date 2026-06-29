@@ -855,3 +855,61 @@ wv.evaluateJavaScript(script) { _, _ in }
 contentEditable elements — direct DOM manipulation doesn't fire framework change events
 (React, Vue, etc. won't see the change). For INPUT/TEXTAREA, dispatch both `input` and
 `change` events so frameworks pick up the new value.
+
+---
+
+### `build.sh` (local build) silently produced an app with no CLI → external triggers broke
+
+Symptom: the global trigger `fn + -` (a BetterTouchTool shortcut that runs `gander toggle`)
+stopped working. It looked like a hotkey problem, but `fn` isn't even a Carbon modifier — the
+trigger is external, so it can never have been one of Gander's `RegisterEventHotKey` hotkeys.
+
+Root cause: `build.sh` only copied `GanderApp → Contents/MacOS/Gander`; it never built or
+bundled `gander-cli`. Only `scripts/build-release.sh` (the CI build) bundles `gander-cli`.
+The Homebrew Cask symlinks `gander → Contents/MacOS/gander-cli`, so when a local `build.sh`
+build got copied over `/Applications/Gander.app`, that symlink became dangling. `which gander`
+returned "not found" and every external trigger (CLI, BTT, `gander://` URL scheme) silently
+failed — the app itself looked completely fine.
+
+How we spotted it: installed app reported version `0.1.14-1-g<sha>-dirty` (a `git describe`
+dev build), but Homebrew's Caskroom only knew a clean release. The "we use brew" install had
+been overwritten by an incomplete local build.
+
+Fix:
+- `build.sh` now also `cp .build/release/gander "$APP/MacOS/gander-cli"` so local test builds
+  are complete. (`swift build -c release` already builds all products, so the binary exists.)
+- For the user's daily app, `brew reinstall --cask gander` restores a complete bundle and the
+  `gander` symlink. Never copy a `build.sh` output over the brew install.
+
+### Carbon hotkey registration can fail silently (defensive, secondary)
+
+`RegisterEventHotKey` returns a non-zero `OSStatus` when a shortcut is already taken (e.g. two
+Gander copies running, or another app owns it). If ignored, startup looks normal but the
+hotkey never fires. `registerHotkey` now checks the status and surfaces a warning (stderr +
+alert for the toggle hotkey). Note: this was *not* the cause of the `fn + -` regression above —
+that was the missing CLI binary — but it's a worthwhile guard.
+
+### `charactersIgnoringModifiers` still applies Shift — bracket/symbol shortcuts broke
+
+The local key monitor handled `⌘⇧[` / `⌘⇧]` (site cycling) by checking
+`charactersIgnoringModifiers == "[" / "]"`. That never matched: `charactersIgnoringModifiers`
+ignores Command/Option/Control but **keeps Shift**, so `⌘⇧[` arrives as `"{"` and `⌘⇧]` as
+`"}"` (same reason `⌘⇧O` arrives as `"O"`, already noted in the code). The bracket shortcuts
+only ever appeared to work via the *global* Carbon `next`/`prev` hotkeys (keyCode-based, so
+Shift doesn't change them). Once those globals were disabled in config, tab cycling was dead.
+
+Fix: match the shifted glyphs `"{"` / `"}"`, with bracket keyCodes (33 = `[`, 30 = `]`) as a
+layout-robust fallback. The same bug existed for two sibling shortcuts that also hold Shift —
+`⌘⇧G` (find previous) and `⌘⇧Z` (redo) compared against `"g"` / `"z"` but Shift delivers
+`"G"` / `"Z"`; fixed by comparing `ch?.lowercased()` (as `⌘⇧O` already did). Audit rule: any
+Shift-bearing shortcut matched via `charactersIgnoringModifiers` must compare case-insensitively
+or by keyCode.
+
+### Design requirement: site-cycling (`⌘⇧[` / `⌘⇧]`) must be local to Gander-frontmost
+
+Tab cycling must only fire when Gander is the active app — never system-wide. Two mechanisms
+existed: the global Carbon `next`/`prev` hotkeys (system-wide) and the panel's local key
+monitor (only fires while Gander is active). The local monitor is the correct home for this;
+the global hotkeys are opt-in and left `null` in config. A `NSEvent` local monitor only sees
+events destined for our app, so it's inherently scoped to "frontmost" without an explicit
+`isKeyWindow` guard.

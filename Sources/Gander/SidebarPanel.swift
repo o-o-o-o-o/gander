@@ -60,8 +60,12 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             if cmd && !shift && noExtra && ch == "[" { self.activeWebView?.goBack(); return nil }
             if cmd && !shift && noExtra && ch == "]" { self.activeWebView?.goForward(); return nil }
             // Site cycling — no isKeyWindow guard, consistent with goBack/goForward above.
-            if cmd && shift && noExtra && ch == "[" { self.prevSite(); return nil }
-            if cmd && shift && noExtra && ch == "]" { self.nextSite(); return nil }
+            // A local monitor only sees events while we're the active app, so this is already
+            // scoped to "Gander frontmost" (unlike the global Carbon next/prev hotkeys).
+            // charactersIgnoringModifiers still applies Shift, so ⌘⇧[ arrives as "{" and ⌘⇧]
+            // as "}". Match the shifted glyphs, with bracket keyCodes (33/30) as a fallback.
+            if cmd && shift && noExtra && (ch == "{" || event.keyCode == 33) { self.prevSite(); return nil }
+            if cmd && shift && noExtra && (ch == "}" || event.keyCode == 30) { self.nextSite(); return nil }
             // Shift produces "O" not "o" in charactersIgnoringModifiers.
             if cmd && shift && noExtra && self.isKeyWindow && ch?.lowercased() == "o" {
                 self.openInExternalBrowser(); return nil
@@ -80,10 +84,12 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             // Non-activating panel: active app's menu bar still owns ⌘C/⌘V unless we intercept.
             if event.keyCode == 53 && self.findBar != nil { self.hideFindBar(); return nil }
             if cmd && !shift && noExtra && ch == "f" { self.showFindBar(); return nil }
-            if cmd && noExtra && ch == "g" && self.findBar != nil {
+            // ⌘G / ⌘⇧G — lowercase the char because Shift makes it "G" in charactersIgnoringModifiers.
+            if cmd && noExtra && ch?.lowercased() == "g" && self.findBar != nil {
                 self.doFind(self.findBar!.searchText, backwards: shift); return nil
             }
-            if cmd && shift && noExtra && self.isKeyWindow && ch == "z" {
+            // ⌘⇧Z redo — Shift makes the char "Z", so compare case-insensitively.
+            if cmd && shift && noExtra && self.isKeyWindow && ch?.lowercased() == "z" {
                 NSApp.sendAction(Selector("redo:"), to: nil, from: event); return nil
             }
             if cmd && !shift && noExtra && self.isKeyWindow, let ch,
