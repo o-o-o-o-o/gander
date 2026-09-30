@@ -55,19 +55,19 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             let cmd    = event.modifierFlags.contains(.command)
             let shift  = event.modifierFlags.contains(.shift)
             let noExtra = event.modifierFlags.intersection([.option, .control]).isEmpty
-            let ch = event.charactersIgnoringModifiers
+            // byApplyingModifiers([]) recovers the base key regardless of Shift, so ⌘⇧[
+            // arrives as "[" not "{" — unlike charactersIgnoringModifiers, which keeps Shift.
+            let ch = event.characters(byApplyingModifiers: [])
             if cmd && !shift && noExtra && ch == "r" { self.activeWebView?.reload(); return nil }
             if cmd && !shift && noExtra && ch == "[" { self.activeWebView?.goBack(); return nil }
             if cmd && !shift && noExtra && ch == "]" { self.activeWebView?.goForward(); return nil }
             // Site cycling — no isKeyWindow guard, consistent with goBack/goForward above.
             // A local monitor only sees events while we're the active app, so this is already
             // scoped to "Gander frontmost" (unlike the global Carbon next/prev hotkeys).
-            // charactersIgnoringModifiers still applies Shift, so ⌘⇧[ arrives as "{" and ⌘⇧]
-            // as "}". Match the shifted glyphs, with bracket keyCodes (33/30) as a fallback.
-            if cmd && shift && noExtra && (ch == "{" || event.keyCode == 33) { self.prevSite(); return nil }
-            if cmd && shift && noExtra && (ch == "}" || event.keyCode == 30) { self.nextSite(); return nil }
-            // Shift produces "O" not "o" in charactersIgnoringModifiers.
-            if cmd && shift && noExtra && self.isKeyWindow && ch?.lowercased() == "o" {
+            // keyCode fallback (33/30) covers layouts where "[" / "]" aren't on those keys.
+            if cmd && shift && noExtra && (ch == "[" || event.keyCode == 33) { self.prevSite(); return nil }
+            if cmd && shift && noExtra && (ch == "]" || event.keyCode == 30) { self.nextSite(); return nil }
+            if cmd && shift && noExtra && self.isKeyWindow && ch == "o" {
                 self.openInExternalBrowser(); return nil
             }
             if cmd && !shift && noExtra, let ch, ch.count == 1, let n = Int(ch) {
@@ -84,12 +84,12 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             // Non-activating panel: active app's menu bar still owns ⌘C/⌘V unless we intercept.
             if event.keyCode == 53 && self.findBar != nil { self.hideFindBar(); return nil }
             if cmd && !shift && noExtra && ch == "f" { self.showFindBar(); return nil }
-            // ⌘G / ⌘⇧G — lowercase the char because Shift makes it "G" in charactersIgnoringModifiers.
-            if cmd && noExtra && ch?.lowercased() == "g" && self.findBar != nil {
+            // ⌘G / ⌘⇧G
+            if cmd && noExtra && ch == "g" && self.findBar != nil {
                 self.doFind(self.findBar!.searchText, backwards: shift); return nil
             }
-            // ⌘⇧Z redo — Shift makes the char "Z", so compare case-insensitively.
-            if cmd && shift && noExtra && self.isKeyWindow && ch?.lowercased() == "z" {
+            // ⌘⇧Z redo
+            if cmd && shift && noExtra && self.isKeyWindow && ch == "z" {
                 NSApp.sendAction(Selector("redo:"), to: nil, from: event); return nil
             }
             if cmd && !shift && noExtra && self.isKeyWindow, let ch,
@@ -614,6 +614,8 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     // NSPanel with .nonactivatingPanel can only become key if it has .titled or a toolbar.
     // We have neither in chrome-free mode, so we override explicitly.
     override var canBecomeKey: Bool { true }
+    // Take keyboard focus without claiming "main window" status from the app's real window.
+    override var canBecomeMain: Bool { false }
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53, pickerVisible { hideSitePicker() }

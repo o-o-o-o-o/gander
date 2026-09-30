@@ -65,6 +65,11 @@ Without `isFloatingPanel = true` some window managers pull it off the floating l
 This burned us when `chrome: false` was introduced and removed `.titled` and the toolbar —
 everything stopped working with no error message. The fix is one line.
 
+Added `canBecomeMain: Bool { false }` alongside it (2026-09-30, found via driceroland/Search,
+`Float.swift`): the panel takes keyboard focus without also claiming "main window" status from
+the app's real window. Gander has no other window today, so this is a no-op in practice, but
+it's the correct pairing if a second window (preferences, etc.) is ever added.
+
 ### Copy/paste in a non-activating accessory app
 
 ⌘C/⌘V did nothing because Gander never becomes the active app (`.nonactivatingPanel` +
@@ -904,6 +909,13 @@ layout-robust fallback. The same bug existed for two sibling shortcuts that also
 `"G"` / `"Z"`; fixed by comparing `ch?.lowercased()` (as `⌘⇧O` already did). Audit rule: any
 Shift-bearing shortcut matched via `charactersIgnoringModifiers` must compare case-insensitively
 or by keyCode.
+
+**Superseded (2026-09-30):** switched the key monitor from `charactersIgnoringModifiers` to
+`event.characters(byApplyingModifiers: [])`, found while surveying a comparable WKWebView
+browser's shortcut handling (driceroland/Search, `Shortcuts.swift`). Passing an explicit empty
+modifier set recovers the base key regardless of Shift, so `⌘⇧[` now arrives as `"["` directly
+— no shifted-glyph matching, no `.lowercased()`. The bracket keyCode fallback stays; it's for
+layout differences, not Shift. The `.lowercased()` workarounds for `⌘⇧O`/`⌘⇧G`/`⌘⇧Z` are gone.
 
 ### Design requirement: site-cycling (`⌘⇧[` / `⌘⇧]`) must be local to Gander-frontmost
 
