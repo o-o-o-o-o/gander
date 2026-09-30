@@ -68,9 +68,18 @@ Casks/gander.rb         Homebrew Cask definition (version + SHA256 auto-updated 
   BetterTouchTool→`gander` CLI binding, not a Gander hotkey (`fn` isn't a Carbon modifier).
   Diagnose with `which gander` / `ls -lL /opt/homebrew/bin/gander` first, not the hotkey code.
 
-- Shortcuts that hold **Shift** must not compare against `charactersIgnoringModifiers` as-is:
-  it keeps Shift, so `⌘⇧[`→`"{"`, `⌘⇧]`→`"}"`, `⌘⇧G`→`"G"`. Compare `.lowercased()` or by
-  keyCode (see SidebarPanel's local key monitor).
+- Shortcuts that hold **Shift**: use `event.characters(byApplyingModifiers: [])`, not
+  `charactersIgnoringModifiers` — the latter still applies Shift (`⌘⇧[`→`"{"`). The empty
+  modifier set recovers the base key directly (see SidebarPanel's local key monitor).
+
+## Reference implementations
+
+`driceroland/Search` (github.com/driceroland/Search) — a comparable WKWebView-based macOS
+browser, more mature (2.3k+ stars). Worth checking for implementation ideas on problems Gander
+shares with it: WKWebView configuration, window/panel behavior, IPC, release tooling. Already
+mined for the Shift-key fix above, pairing `canBecomeMain: false` with `canBecomeKey`, and the
+CSS-injection idiom used to hide scrollbars. See `learnings.md` for what was checked and what
+wasn't there (e.g. it does *not* hide scrollbars itself — that part isn't ported from it).
 
 ## Config file
 

@@ -917,6 +917,49 @@ modifier set recovers the base key regardless of Shift, so `⌘⇧[` now arrives
 — no shifted-glyph matching, no `.lowercased()`. The bracket keyCode fallback stays; it's for
 layout differences, not Shift. The `.lowercased()` workarounds for `⌘⇧O`/`⌘⇧G`/`⌘⇧Z` are gone.
 
+### Top stripe repurposed as a page-load progress bar (2026-09-30)
+
+The top color stripe (`config.color` / `config.stripeHeight`, previously a static full-width
+bar) now animates its width with `WKWebView.estimatedProgress` — 0→100% while loading, snaps
+to full on finish, collapses back to 0 after a short delay. `estimatedProgress`/`isLoading` are
+native KVO properties on `WKWebView`; no custom progress tracking needed. Observation is bound
+per active session in `activateWebView`, the same place `titleObservation` already gets rebound
+on site switch — same pattern, so switching sites re-syncs the bar instantly (no animation) to
+whatever state the newly-active session is already in.
+
+Regression: the bar previously served double duty as a permanent per-instance color identifier
+(see README "Multiple instances") — with multiple Gander instances running, each one's stripe
+was always visible so you could tell them apart at a glance. That's gone now: the bar is only
+visible during an active load. If that identification need comes back, it'll need a separate
+always-on element instead of reusing this one.
+
+Default `stripeHeight` dropped from 3 to 2 — a persistent full-width identity stripe reads
+differently than a thin transient progress indicator; 2pt is closer to Safari/Chrome's own bar
+weight. Both `color` and `stripeHeight` were already config fields, so no new config surface
+was needed for this.
+
+Verifying this kind of change is awkward in this environment: `screencapture` fails
+(`could not create image from display`) even with the shell sandbox disabled — no macOS Screen
+Recording permission granted to the process running shell commands here. Verified instead by
+launching an isolated instance (own config, own window position) and asking the user to look at
+it directly while triggering loads — a fast page (e.g. Wikipedia) collapses the bar too quickly
+to reliably catch, so use an artificially slow one (`https://httpbin.org/delay/4`) to get a
+multi-second window to confirm against.
+
+### Scrollbar hidden via injected CSS user script
+
+Added a `WKUserScript` (CSS `::-webkit-scrollbar{display:none}` + `scrollbar-width:none`,
+injected at `.atDocumentStart`, `forMainFrameOnly: false`) through a custom
+`WKWebViewConfiguration` in `makeWebView()`. Scrolling itself is unaffected — trackpad/keyboard
+scrolling doesn't go through the visible track. `forMainFrameOnly: false` so embedded
+iframes (maps, embeds) get it too, not just the top-level page.
+
+Checked driceroland/Search for an existing implementation first (GitHub code search across the
+repo for `scrollbar`, `NSScroller`, `webkit-scrollbar`, `scrollbar-width` — zero hits anywhere).
+They don't hide scrollbars; there was nothing to port. Did confirm their general CSS-injection
+idiom (a `Veiling.style(css)` helper wrapping a `WKUserScript` at `.atDocumentStart`, per-frame)
+matches the standard approach used here.
+
 ### Design requirement: site-cycling (`⌘⇧[` / `⌘⇧]`) must be local to Gander-frontmost
 
 Tab cycling must only fire when Gander is the active app — never system-wide. Two mechanisms

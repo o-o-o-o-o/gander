@@ -27,6 +27,13 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
 
     private var titleObservation: NSKeyValueObservation?
 
+    // Page-load progress bar (top stripe repurposed as a fill indicator)
+    private var progressBar:               NSView!
+    private var progressBarWidthConstraint: NSLayoutConstraint!
+    private var progressObservation:        NSKeyValueObservation?
+    private var loadingObservation:         NSKeyValueObservation?
+    private var progressCollapseWorkItem:   DispatchWorkItem?
+
     init(config: AppConfig) {
         self.config = config
 
@@ -198,20 +205,25 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
 
         pickerHeightConstraint = pickerView.heightAnchor.constraint(equalToConstant: 0)
 
-        // Color stripe at top of content — works in both chrome and no-chrome modes,
-        // avoids NSTitlebarAccessoryViewController which conflicts with toolbar layout
+        // Page-load progress bar at top of content — works in both chrome and no-chrome
+        // modes, avoids NSTitlebarAccessoryViewController which conflicts with toolbar
+        // layout. Width fills 0→100% with estimatedProgress, then collapses to 0 on finish;
+        // see bindProgress/handleProgress.
         if let color = config.accentColor, config.stripeHeight > 0 {
-            let stripe = NSView()
-            stripe.wantsLayer = true
-            stripe.layer?.backgroundColor = color.cgColor
-            stripe.translatesAutoresizingMaskIntoConstraints = false
-            contentView!.addSubview(stripe)
+            let bar = NSView()
+            bar.wantsLayer = true
+            bar.layer?.backgroundColor = color.cgColor
+            bar.translatesAutoresizingMaskIntoConstraints = false
+            contentView!.addSubview(bar)
+            progressBar = bar
+            let widthConstraint = bar.widthAnchor.constraint(equalToConstant: 0)
+            progressBarWidthConstraint = widthConstraint
             NSLayoutConstraint.activate([
-                stripe.topAnchor.constraint(equalTo: contentView!.topAnchor),
-                stripe.leadingAnchor.constraint(equalTo: contentView!.leadingAnchor),
-                stripe.trailingAnchor.constraint(equalTo: contentView!.trailingAnchor),
-                stripe.heightAnchor.constraint(equalToConstant: CGFloat(config.stripeHeight)),
-                pickerView.topAnchor.constraint(equalTo: stripe.bottomAnchor),
+                bar.topAnchor.constraint(equalTo: contentView!.topAnchor),
+                bar.leadingAnchor.constraint(equalTo: contentView!.leadingAnchor),
+                bar.heightAnchor.constraint(equalToConstant: CGFloat(config.stripeHeight)),
+                widthConstraint,
+                pickerView.topAnchor.constraint(equalTo: bar.bottomAnchor),
             ])
         } else {
             pickerView.topAnchor.constraint(equalTo: contentView!.topAnchor).isActive = true
@@ -232,7 +244,7 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     // MARK: Session management
 
     private func makeWebView() -> WKWebView {
-        let wv = GanderWebView(frame: .zero)
+        let wv = GanderWebView(frame: .zero, configuration: Self.makeWebViewConfiguration())
         wv.translatesAutoresizingMaskIntoConstraints = false
         // Default WKWebView UA omits "Version/… Safari/…"; some login flows reject that.
         wv.customUserAgent = Self.safariUserAgent
@@ -240,6 +252,19 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
         wv.onOpenExternally = { [weak self] in self?.openInExternalBrowser() }
         wv.onCopyURL        = { [weak self] in self?.copyCurrentURL() }
         return wv
+    }
+
+    // Suppresses the page's own scrollbar track; scrolling via trackpad/keyboard is unaffected.
+    // Injected at document start so it applies before first paint, in every frame (embedded
+    // maps/videos included) — same injection shape libraries like driceroland/Search use for
+    // page-wide CSS (their Veiling.style helper).
+    private static func makeWebViewConfiguration() -> WKWebViewConfiguration {
+        let config = WKWebViewConfiguration()
+        let css = "::-webkit-scrollbar{display:none!important}html{scrollbar-width:none!important}"
+        let source = "(function(){var s=document.createElement('style');s.textContent=\"\(css)\";document.documentElement.appendChild(s);})();"
+        let script = WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+        config.userContentController.addUserScript(script)
+        return config
     }
 
     private static let safariUserAgent: String = {
@@ -343,10 +368,60 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
                 self.title = webView.title?.isEmpty == false ? webView.title! : fallback
             }
         }
+
+        bindProgress(to: wv)
     }
 
     var activeWebView: WKWebView? {
         activeKey.flatMap { sessions[$0] }
+    }
+
+    // MARK: Progress bar
+
+    private func bindProgress(to wv: WKWebView) {
+        guard progressBar != nil else { return }  // no bar configured — skip KVO setup entirely
+
+        // KVO can fire off-main; the async hop means a stale update for a since-deactivated
+        // session can land after a site switch, so re-check identity before applying it.
+        progressObservation = wv.observe(\.estimatedProgress, options: [.new]) { [weak self] webView, _ in
+            DispatchQueue.main.async {
+                guard let self, self.activeWebView === webView else { return }
+                self.handleProgress(webView.estimatedProgress, isLoading: webView.isLoading)
+            }
+        }
+        loadingObservation = wv.observe(\.isLoading, options: [.new]) { [weak self] webView, _ in
+            DispatchQueue.main.async {
+                guard let self, self.activeWebView === webView else { return }
+                self.handleProgress(webView.estimatedProgress, isLoading: webView.isLoading)
+            }
+        }
+        // Sync instantly to whatever state the newly-active session is already in —
+        // no animation, so switching sites doesn't trigger a distracting slide.
+        handleProgress(wv.estimatedProgress, isLoading: wv.isLoading, animated: false)
+    }
+
+    private func handleProgress(_ progress: Double, isLoading: Bool, animated: Bool = true) {
+        guard progressBarWidthConstraint != nil else { return }
+        progressCollapseWorkItem?.cancel()
+        if isLoading {
+            setProgressBarFraction(progress, animated: animated)
+        } else {
+            setProgressBarFraction(1, animated: animated)
+            let collapse = DispatchWorkItem { [weak self] in self?.setProgressBarFraction(0, animated: true) }
+            progressCollapseWorkItem = collapse
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: collapse)
+        }
+    }
+
+    private func setProgressBarFraction(_ fraction: Double, animated: Bool) {
+        let width = contentView!.bounds.width * CGFloat(max(0, min(1, fraction)))
+        progressBarWidthConstraint.constant = width
+        guard animated else { contentView!.layoutSubtreeIfNeeded(); return }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.15
+            ctx.allowsImplicitAnimation = true
+            contentView!.layoutSubtreeIfNeeded()
+        }
     }
 
     // MARK: Site cycling (⌘⇧] / ⌘⇧[)

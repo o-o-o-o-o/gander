@@ -76,7 +76,7 @@ struct LogicTests {
         expect(defaults.name           == "default",      "AppConfig: name defaults to 'default'")
         expect(defaults.width          == 420,            "AppConfig: width defaults to 420")
         expect(defaults.chrome         == true,           "AppConfig: chrome defaults to true")
-        expect(defaults.stripeHeight   == 3,              "AppConfig: stripeHeight defaults to 3")
+        expect(defaults.stripeHeight   == 2,              "AppConfig: stripeHeight defaults to 2")
         expect(defaults.externalBrowser == "Safari",      "AppConfig: externalBrowser defaults to Safari")
         expect(defaults.color          == nil,            "AppConfig: color defaults to nil")
         expect(defaults.height         == nil,            "AppConfig: height defaults to nil (full screen)")

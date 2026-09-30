@@ -70,7 +70,7 @@ All fields are optional — omit any you don't need. `name` defaults to `"defaul
 | Field        | Type   | Description                                                   |
 | ------------ | ------ | ------------------------------------------------------------- |
 | `name`       | string | Instance identifier. Used for CLI routing.                    |
-| `color`      | string | Hex color for the accent stripe + menu bar icon.              |
+| `color`      | string | Hex color for the top loading progress bar + menu bar icon.   |
 | `width`      | number | Window width in points. Default: 420.                         |
 | `height`     | number | Window height in points. Default: visible screen height.      |
 | `x`          | number | Left edge in screen points. Default: right edge placement.    |
@@ -251,7 +251,8 @@ gander work toggle
 gander personal open https://twitter.com
 ```
 
-Each instance shows its color as a stripe below the toolbar and as a tint on its menu bar icon.
+Each instance shows its color as a page-load progress bar at the top of the content and as a
+tint on its menu bar icon.
 
 ---
 

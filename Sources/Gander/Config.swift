@@ -77,7 +77,7 @@ struct AppConfig: Codable {
     var frameAuto: FrameAutoConfig?
     var defaultUrl: String
     var chrome: Bool            // false = no title bar or toolbar, keyboard-only nav
-    var stripeHeight: Double    // height of the color stripe in points; 0 = no stripe
+    var stripeHeight: Double    // height of the top progress bar in points; 0 = disabled
     var externalBrowser: String // app name or bundle ID, default "Safari"
     var pinned: String?         // nil = no shortcuts | "auto" = ⌘1–9 for first 9 sites | "manual" = per-site shortcut field
     var hotkeys: HotkeysConfig
@@ -94,7 +94,7 @@ struct AppConfig: Codable {
         y            =  try? c.decode(Double.self,          forKey: .y)
         defaultUrl   = (try? c.decode(String.self,          forKey: .defaultUrl))   ?? "https://google.com"
         chrome          = (try? c.decode(Bool.self,            forKey: .chrome))          ?? true
-        stripeHeight    = (try? c.decode(Double.self,          forKey: .stripeHeight))    ?? 3
+        stripeHeight    = (try? c.decode(Double.self,          forKey: .stripeHeight))    ?? 2
         externalBrowser = (try? c.decode(String.self,          forKey: .externalBrowser)) ?? "Safari"
         let rawPinned   =  try? c.decode(String.self,          forKey: .pinned)
         pinned          = rawPinned.flatMap { ["auto", "manual"].contains($0) ? $0 : nil }
@@ -110,7 +110,7 @@ struct AppConfig: Codable {
          frame: String? = nil, frames: [String: FramePreset]? = nil,
          frameAuto: FrameAutoConfig? = nil,
          defaultUrl: String = "https://google.com", chrome: Bool = true,
-         stripeHeight: Double = 3, externalBrowser: String = "Safari",
+         stripeHeight: Double = 2, externalBrowser: String = "Safari",
          pinned: String? = nil, hotkeys: HotkeysConfig = HotkeysConfig(),
          sites: [SiteConfig] = AppConfig.builtinSites) {
         self.name = name; self.color = color; self.width = width
