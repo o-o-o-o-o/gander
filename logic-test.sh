@@ -172,7 +172,7 @@ struct LogicTests {
                     "laptop": FramePreset(width: .points(360), height: .percent(100), x: .right, y: .bottom),
                 ],
                 frameAuto: FrameAutoConfig(match: [
-                    FrameAutoMatch(screenCount: 1, screenCountMin: nil, frame: "laptop"),
+                    FrameAutoMatch(screenCount: nil, screenCountMin: 1, frame: "laptop"),
                 ])
             )
             expect(named.launchPresetName(screenCount: 1) == "laptop",

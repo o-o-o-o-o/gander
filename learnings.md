@@ -979,3 +979,10 @@ Gatekeeper calls it "damaged" — not the usual "unidentified developer" prompt,
 `xattr -dr com.apple.quarantine` and Open Anyway can both fail to help. Fix: re-sign at build
 time (added to `scripts/build-release.sh` and `build.sh`); ships in the next release.
 Immediate fix on an installed copy: `codesign --force --deep --sign - /Applications/Gander.app`.
+
+### logic-test.sh `named preset width` depended on the attached display count (2026-10-08)
+
+Takeaway: tests that call `initialFrame(on:)` read the live `NSScreen.screens.count`, so they
+must not hard-code `screenCount: 1`. With two displays attached, the `frameAuto` rule for one
+screen never matched, the config fell back to legacy width, and `release.sh` aborted at the
+logic-test step. Fix: the test rule uses `screenCountMin: 1`.
