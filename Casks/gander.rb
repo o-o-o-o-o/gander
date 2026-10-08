@@ -2,8 +2,8 @@
 # frozen_string_literal: true
 
 cask "gander" do
-  version "0.3.0"
-  sha256 "21378fc3d7a7b5a570244c2f7c09dc7cb1124a6c7966d184e9f5d75414afe11a"
+  version "0.3.1"
+  sha256 "7f65ce4b2c89afe1d7bc81c6805ffbed9ea4d47fd5471fe36e997dbfd31f4f6e"
 
   url "https://github.com/o-o-o-o-o/gander/releases/download/v#{version}/Gander-v#{version}.zip"
   name "Gander"
