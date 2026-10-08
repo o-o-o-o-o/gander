@@ -5,3 +5,7 @@ Gander-v*.zip
 *.o
 .DS_Store
 .claude/
+
+# Backlog (local project management)
+backlog/
+backlog.config.yml

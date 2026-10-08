@@ -968,3 +968,14 @@ monitor (only fires while Gander is active). The local monitor is the correct ho
 the global hotkeys are opt-in and left `null` in config. A `NSEvent` local monitor only sees
 events destined for our app, so it's inherently scoped to "frontmost" without an explicit
 `isKeyWindow` guard.
+
+### "Gander is damaged and can't be opened" = broken ad-hoc signature (2026-10-08)
+
+Takeaway: `build-release.sh` must `codesign --force --deep --sign -` the assembled bundle.
+SwiftPM's linker ad-hoc-signs only the bare Mach-O. We then add `Info.plist` and `Resources/`
+by hand, so the seal is invalid (`code has no resources but signature indicates they must be
+present`). Unquarantined, it still runs. With the Homebrew quarantine flag, Apple Silicon
+Gatekeeper calls it "damaged" — not the usual "unidentified developer" prompt, so
+`xattr -dr com.apple.quarantine` and Open Anyway can both fail to help. Fix: re-sign at build
+time (added to `scripts/build-release.sh` and `build.sh`); ships in the next release.
+Immediate fix on an installed copy: `codesign --force --deep --sign - /Applications/Gander.app`.

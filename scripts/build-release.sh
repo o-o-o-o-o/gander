@@ -128,6 +128,10 @@ cat > "$APP/Info.plist" << PLIST
 </dict></plist>
 PLIST
 
+# Re-seal after assembly: the linker's ad-hoc signature does not cover Info.plist/Resources,
+# and Apple Silicon reports "damaged" for a quarantined app with an invalid signature.
+codesign --force --deep --sign - Gander.app
+codesign --verify --deep --strict Gander.app
 echo "✓ Gander.app built"
 
 # ── Zip ───────────────────────────────────────────────────────────────────────

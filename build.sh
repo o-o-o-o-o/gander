@@ -116,5 +116,6 @@ cat > "$APP/Info.plist" << PLIST
 </dict></plist>
 PLIST
 
+codesign --force --deep --sign - "${APP_BUNDLE}"
 echo "✓ Gander.app built at ${APP_BUNDLE}"
 echo "  To test: open \"${APP_BUNDLE}\""
