@@ -979,6 +979,19 @@ Gatekeeper calls it "damaged" — not the usual "unidentified developer" prompt,
 `xattr -dr com.apple.quarantine` and Open Anyway can both fail to help. Fix: re-sign at build
 time (added to `scripts/build-release.sh` and `build.sh`); ships in the next release.
 Immediate fix on an installed copy: `codesign --force --deep --sign - /Applications/Gander.app`.
+**Superseded (2026-10-14):** the re-sign was necessary but not sufficient — see next entry.
+
+### "Damaged" persists with a valid ad-hoc signature: strip quarantine in the Cask (2026-10-14)
+
+Takeaway: an ad-hoc signed, un-notarized app that has the quarantine flag is reported as "damaged"
+on Apple Silicon. A valid signature does not prevent this. v0.3.1 passed `codesign --verify
+--deep --strict`. But `spctl -a` still rejected it, and `syspolicy_check distribution` reported
+"Adhoc Signed App" and "Notary Ticket Missing" (fatal). Homebrew sets `com.apple.quarantine` on
+every cask install, so every brew install hit the error. Fix: a `postflight` in
+`Casks/gander.rb` runs `xattr -dr com.apple.quarantine` on the installed app. CI only `sed`s the
+`version`/`sha256` lines, so the block survives cask updates. A tap push is enough: no release.
+Existing installs need `brew reinstall --cask gander`. The full fix is Developer ID signing plus
+notarization (paid Apple Developer account).
 
 ### logic-test.sh `named preset width` depended on the attached display count (2026-10-08)
 
