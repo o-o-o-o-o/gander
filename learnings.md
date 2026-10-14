@@ -172,6 +172,11 @@ Second-instance rules (found 2026-10-14 when the `llm` instance replaced the BTT
 - `SMAppService.mainApp` ("Open at Login") launches the bundle without arguments, so it only
   starts `default`. Start other instances with a LaunchAgent that passes `--config`.
 - Both instances share one bundle ID, so they share the WebKit cookie and website-data store.
+- `open -a Gander` with any instance running only activates that process; it does not start
+  `default`. Use `open -n`. The same LaunchServices rule can stop the "Open at Login" item when a
+  LaunchAgent instance starts first, so on this machine both instances run from LaunchAgents
+  (`~/Library/LaunchAgents/io.gander.default.plist`, `io.gander.llm.plist`) and "Open at Login"
+  stays off. With both on, two `default` processes start and the second one shows the hotkey alert.
 
 ### Two `frameConfig` overload helpers in AppDelegate
 
