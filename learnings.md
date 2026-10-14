@@ -166,6 +166,13 @@ in the config drives:
 
 No inter-instance coordination. Each instance is completely independent.
 
+Second-instance rules (found 2026-10-14 when the `llm` instance replaced the BTT hotkey window):
+- Set every `hotkeys` entry to `null`. Carbon registration is system-wide, so a second
+  instance with the default `cmd+shift+\` fails and shows the "Global Shortcut Unavailable" alert.
+- `SMAppService.mainApp` ("Open at Login") launches the bundle without arguments, so it only
+  starts `default`. Start other instances with a LaunchAgent that passes `--config`.
+- Both instances share one bundle ID, so they share the WebKit cookie and website-data store.
+
 ### Two `frameConfig` overload helpers in AppDelegate
 
 `AppDelegate` has two private helpers with identical signatures returning a `FrameConfig`:
@@ -422,6 +429,8 @@ All fields optional; defaults are sane. Legacy top-level `width` / `height` / `x
 as the implicit `"default"` preset when `frames` is omitted.
 
 - **`defaultUrl`** — loaded on app launch and with **⌘0** (panel must be key window).
+- **`sitesCommand`** — shell command; stdout JSON `[{name,url,...}]` replaces `sites`. Run at
+  launch and on each picker open. Failure, timeout or empty output keeps the current list.
 - **`pinned`** — `"auto"` (⌘1–⌘9 for first 9 sites), `"manual"` (per-site `shortcut`), or omit.
 - **`frames` / `frame` / `frameAuto`** — named layouts; auto-switch on display plug/unplug via
   `frameAuto.match` and `NSScreen.screens.count`; geometry resolved on main screen.
@@ -999,3 +1008,24 @@ Takeaway: tests that call `initialFrame(on:)` read the live `NSScreen.screens.co
 must not hard-code `screenCount: 1`. With two displays attached, the `frameAuto` rule for one
 screen never matched, the config fell back to legacy width, and `release.sh` aborted at the
 logic-test step. Fix: the test rule uses `screenCountMin: 1`.
+
+### `sitesCommand` — external site lists (DEVONthink) (2026-10-14)
+
+Takeaway: Gander stays tool-agnostic. It runs a shell command and reads `name`/`url` from a
+JSON array, instead of talking to DEVONthink itself. The `llm` instance uses
+`~/🍇/Scripts/apps/dt/listBookmarks <group-uuid>`, the same script the Alfred `,` workflow uses.
+
+- **PATH:** an app launched by launchd gets `/usr/bin:/bin:/usr/sbin:/sbin` only. The sd scripts
+  need Homebrew tools and `/sbin/md5`; `env -i … PATH=/usr/bin:/bin` reproduced
+  "md5 is not installed". `runSitesCommand` prepends Homebrew and sbin paths.
+- **Refresh point:** the command reruns when the picker opens, not on a timer. The result
+  arrives async, so `SitePickerView.configure` now reapplies the typed query and reloads the
+  table. Before, `configure` reset `filtered` without `reloadData`, a latent stale-table bug
+  that also hit `setTransientShortcut` while the picker was open.
+- **Upstream cache bug (fixed in Scripts):** `listBookmarks` validated its cache against the
+  DT group's `modification date as string`. Recent macOS puts U+202F (narrow no-break space)
+  before AM/PM, no `date -jf` format matched, the timestamp fell back to 0, and the cache
+  never expired on DT edits. The fix asks AppleScript for the age in seconds instead.
+- **Verification without screen recording:** read the picker rows through the AX API
+  (`AXUIElementCreateApplication(pid)` → walk `AXStaticText`). System Events reported
+  0 windows for the non-activating panel. CGWindowList gives the frame.

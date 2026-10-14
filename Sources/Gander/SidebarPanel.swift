@@ -5,6 +5,8 @@ private let PICKER_HEIGHT: CGFloat = 260
 
 class SidebarPanel: NSPanel, NSToolbarDelegate {
     private let config: AppConfig
+    private var sites: [SiteConfig]               // config.sites, replaced by sitesCommand output
+    private var sitesReloading = false
     private var transientSites: [SiteConfig] = []
     private var transientShortcuts: [Int: String] = [:]  // runtime-only; set via URL scheme shortcut param
 
@@ -36,6 +38,7 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
 
     init(config: AppConfig) {
         self.config = config
+        self.sites = config.sites
 
         let screen = NSScreen.main ?? NSScreen.screens[0]
         activePresetName = config.launchPresetName(screenCount: NSScreen.screens.count)
@@ -105,10 +108,28 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
         }
 
         openURL(config.defaultUrl, animated: false)
+        reloadSites()
     }
 
     private var availableSites: [SiteConfig] {
-        config.sites + transientSites
+        sites + transientSites
+    }
+
+    /// Re-runs `sitesCommand` off the main thread; on success swaps in the new list.
+    /// Failure or empty output keeps the current list.
+    func reloadSites() {
+        guard let command = config.sitesCommand, !sitesReloading else { return }
+        sitesReloading = true
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let fresh = AppConfig.runSitesCommand(command)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.sitesReloading = false
+                guard let fresh else { return }
+                self.sites = fresh
+                self.refreshPickerSites()
+            }
+        }
     }
 
     // Returns sites keyed by shortcut number based on the pinned mode.
@@ -118,10 +139,10 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
         switch config.pinned {
         case "auto":
             return Dictionary(uniqueKeysWithValues:
-                config.sites.prefix(9).enumerated().map { ($0.offset + 1, $0.element) })
+                sites.prefix(9).enumerated().map { ($0.offset + 1, $0.element) })
         case "manual":
             var result: [Int: SiteConfig] = [:]
-            for site in config.sites where site.shortcut != nil {
+            for site in sites where site.shortcut != nil {
                 let n = site.shortcut!
                 if result[n] == nil { result[n] = site }  // first wins
             }
@@ -552,6 +573,7 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             return
         }
         pickerVisible = true
+        reloadSites()
         pickerView.prepare()
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.2

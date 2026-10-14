@@ -181,6 +181,34 @@ struct LogicTests {
             expect(namedFrame.size.width == 360, "named preset width")
         }
 
+        // ── sitesCommand ──────────────────────────────────────────────────────
+        expect(defaults.sitesCommand == nil, "AppConfig: sitesCommand defaults to nil")
+        let withCmd = try JSONDecoder().decode(AppConfig.self, from: Data("{\"sitesCommand\":\"echo []\"}".utf8))
+        expect(withCmd.sitesCommand == "echo []", "AppConfig: sitesCommand decodes")
+        let emptyCmd = try JSONDecoder().decode(AppConfig.self, from: Data("{\"sitesCommand\":\"\"}".utf8))
+        expect(emptyCmd.sitesCommand == nil, "AppConfig: empty sitesCommand is nil")
+
+        // listBookmarks shape: extra keys ignored, entries without url skipped
+        let parsed = AppConfig.parseSites(Data("""
+            [{"uuid":"U","tags":"t","name":"Claude","url":"https://claude.ai/new","aliases":""},
+             {"name":"no url"}]
+            """.utf8))
+        expect(parsed?.count == 1 && parsed?[0].name == "Claude", "parseSites: keeps valid entries only")
+        expect(AppConfig.parseSites(Data("[]".utf8)) == nil, "parseSites: empty array is nil")
+        expect(AppConfig.parseSites(Data("not json".utf8)) == nil, "parseSites: non-JSON is nil")
+        expect(AppConfig.parseSites(Data("{\"name\":\"A\",\"url\":\"u\"}".utf8)) == nil, "parseSites: object is nil")
+
+        let ran = AppConfig.runSitesCommand("echo noise >&2; echo '[{\"name\":\"A\",\"url\":\"https://a.example\"}]'")
+        expect(ran?.first?.url == "https://a.example", "runSitesCommand: parses stdout, ignores stderr")
+        expect(AppConfig.runSitesCommand("echo '[{\"name\":\"A\",\"url\":\"u\"}]'; exit 3") == nil,
+               "runSitesCommand: non-zero exit is nil")
+        expect(AppConfig.runSitesCommand("sleep 5", timeout: 0.5) == nil, "runSitesCommand: timeout is nil")
+        // A background grandchild keeps the pipe open after zsh exits: must still time out.
+        let started = Date()
+        expect(AppConfig.runSitesCommand("(sleep 4; echo '[]') &", timeout: 0.5) == nil,
+               "runSitesCommand: grandchild holding the pipe is nil")
+        expect(Date().timeIntervalSince(started) < 2, "runSitesCommand: grandchild does not block past timeout")
+
         print("==> Logic tests passed")
     }
 }

@@ -82,6 +82,7 @@ struct AppConfig: Codable {
     var pinned: String?         // nil = no shortcuts | "auto" = ⌘1–9 for first 9 sites | "manual" = per-site shortcut field
     var hotkeys: HotkeysConfig
     var sites: [SiteConfig]
+    var sitesCommand: String?   // shell command printing a JSON [{name,url}] array; replaces `sites` when it succeeds
 
     // All fields optional in JSON — everything has a sane default
     init(from decoder: Decoder) throws {
@@ -100,6 +101,7 @@ struct AppConfig: Codable {
         pinned          = rawPinned.flatMap { ["auto", "manual"].contains($0) ? $0 : nil }
         hotkeys      = (try? c.decode(HotkeysConfig.self,   forKey: .hotkeys))      ?? HotkeysConfig()
         sites        = (try? c.decode([SiteConfig].self,    forKey: .sites))        ?? AppConfig.builtinSites
+        sitesCommand = (try? c.decode(String.self,          forKey: .sitesCommand)).flatMap { $0.isEmpty ? nil : $0 }
         frame        = try? c.decode(String.self,            forKey: .frame)
         frames       = try? c.decode([String: FramePreset].self, forKey: .frames)
         frameAuto    = try? c.decode(FrameAutoConfig.self, forKey: .frameAuto)
@@ -112,13 +114,14 @@ struct AppConfig: Codable {
          defaultUrl: String = "https://google.com", chrome: Bool = true,
          stripeHeight: Double = 2, externalBrowser: String = "Safari",
          pinned: String? = nil, hotkeys: HotkeysConfig = HotkeysConfig(),
-         sites: [SiteConfig] = AppConfig.builtinSites) {
+         sites: [SiteConfig] = AppConfig.builtinSites, sitesCommand: String? = nil) {
         self.name = name; self.color = color; self.width = width
         self.height = height; self.x = x; self.y = y
         self.frame = frame; self.frames = frames; self.frameAuto = frameAuto
         self.defaultUrl = defaultUrl; self.chrome = chrome
         self.stripeHeight = stripeHeight; self.externalBrowser = externalBrowser
         self.pinned = pinned; self.hotkeys = hotkeys; self.sites = sites
+        self.sitesCommand = sitesCommand
     }
 
     static let builtinSites: [SiteConfig] = [
@@ -180,6 +183,49 @@ struct AppConfig: Codable {
         let name = launchPresetName(screenCount: NSScreen.screens.count)
         if let rect = resolveFrame(preset: name, on: screen) { return rect }
         return FrameResolver.computedRect(legacyDefaultPreset(), on: screen, fallbackWidth: CGFloat(width))
+    }
+
+    /// Sites from `sitesCommand` output. Extra keys per entry are ignored; nil when the output is
+    /// not a JSON array or holds no valid entries, so the caller keeps the static `sites`.
+    static func parseSites(_ data: Data) -> [SiteConfig]? {
+        guard let raw = try? JSONSerialization.jsonObject(with: data) as? [Any] else { return nil }
+        let sites = raw.compactMap { item -> SiteConfig? in
+            guard let entry = try? JSONSerialization.data(withJSONObject: item) else { return nil }
+            return try? JSONDecoder().decode(SiteConfig.self, from: entry)
+        }
+        return sites.isEmpty ? nil : sites
+    }
+
+    /// Runs `sitesCommand` through /bin/zsh and parses its stdout. Blocking — call off the main thread.
+    /// GUI apps get launchd's bare PATH, so Homebrew and sbin (md5 etc.) are prepended.
+    static func runSitesCommand(_ command: String, timeout: TimeInterval = 15) -> [SiteConfig]? {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        proc.arguments = ["-c", command]
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:" + (env["PATH"] ?? "")
+        proc.environment = env
+        let out = Pipe()
+        proc.standardOutput = out
+        proc.standardError = FileHandle.nullDevice
+        proc.standardInput = FileHandle.nullDevice
+        do { try proc.run() } catch { return nil }
+
+        // Read on another thread: a grandchild (pipeline, background job) can hold the pipe
+        // open after zsh exits or is killed, and readDataToEndOfFile would block forever.
+        var data = Data()
+        let done = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            data = out.fileHandleForReading.readDataToEndOfFile()
+            done.signal()
+        }
+        guard done.wait(timeout: .now() + timeout) == .success else {
+            if proc.isRunning { proc.terminate() }
+            return nil
+        }
+        proc.waitUntilExit()
+        guard proc.terminationStatus == 0 else { return nil }
+        return parseSites(data)
     }
 
     static func load(from path: String) throws -> AppConfig {

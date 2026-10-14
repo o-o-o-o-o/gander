@@ -77,8 +77,23 @@ All fields are optional — omit any you don't need. `name` defaults to `"defaul
 | `y`          | number | Bottom edge in screen points. Default: visible screen bottom. |
 | `defaultUrl` | string | URL loaded on launch and with ⌘0.                             |
 | `sites`      | array  | Site list shown in the picker (⌘⇧/).                          |
+| `sitesCommand` | string | Shell command that prints a JSON array of `{name, url}`. Replaces `sites` when it succeeds. |
 
 If `height`, `x`, or `y` are omitted, Gander preserves the current default behavior: full visible screen height, aligned to the right edge, starting at the bottom of the visible screen.
+
+### Sites from a command (DEVONthink, etc.)
+
+Set `sitesCommand` to load the site list from another tool. Gander runs the command with `/bin/zsh -c` at launch and each time the site picker opens. The command prints a JSON array to stdout. Gander reads `name` and `url` from each entry and ignores other keys.
+
+```json
+{
+  "sitesCommand": "\"$HOME/🍇/Scripts/apps/dt/listBookmarks\" 8DFC550E-5F2F-4020-8EE2-A4C19F334E5C"
+}
+```
+
+- Homebrew and `/usr/sbin` are added to `PATH`, because apps launched from the Dock get a minimal `PATH`.
+- If the command fails, times out (15 s), or prints an empty list, Gander keeps the current list. Keep `sites` as a fallback.
+- `pinned: "auto"` follows the command order, so ⌘1–⌘9 map to its first nine entries.
 
 ### Named frames (laptop / studio)
 
@@ -243,6 +258,10 @@ Launch both:
 .build/release/GanderApp --config ~/.config/gander/work.json &
 .build/release/GanderApp --config ~/.config/gander/personal.json &
 ```
+
+Set every `hotkeys` entry of the second instance to `null`. Two instances cannot register the same global shortcut. Drive the second instance from the CLI, or bind a key in another tool to `gander <name> toggle`.
+
+To start an instance at login, use a LaunchAgent. The menu's "Open at Login" registers only the default instance.
 
 Control each independently:
 

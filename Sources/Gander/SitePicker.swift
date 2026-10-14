@@ -28,9 +28,16 @@ class SitePickerView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     required init?(coder: NSCoder) { fatalError() }
 
     func configure(sites: [SiteConfig], shortcuts: [String: Int] = [:]) {
+        let row = tableView.selectedRow
+        let selectedURL = row >= 0 && row < filtered.count ? filtered[row].url : nil
         allSites = sites
-        filtered = sites
         shortcutMap = shortcuts
+        applyFilter()  // keeps the typed query when the list refreshes while the picker is open
+        // An async refresh must not move the highlight, or ↩ opens a different site.
+        if let selectedURL, let idx = filtered.firstIndex(where: { $0.url == selectedURL }) {
+            tableView.selectRowIndexes(IndexSet(integer: idx), byExtendingSelection: false)
+            tableView.scrollRowToVisible(idx)
+        }
     }
 
     // Call before showing to reset search state
@@ -158,7 +165,9 @@ class SitePickerView: NSView, NSTableViewDataSource, NSTableViewDelegate {
 
 // MARK: Search field delegate — arrow keys navigate the table without leaving the field
 extension SitePickerView: NSSearchFieldDelegate {
-    func controlTextDidChange(_ obj: Notification) {
+    func controlTextDidChange(_ obj: Notification) { applyFilter() }
+
+    fileprivate func applyFilter() {
         let q = searchField.stringValue.lowercased()
         filtered = q.isEmpty ? allSites : allSites.filter {
             $0.name.lowercased().contains(q) || $0.url.lowercased().contains(q)
