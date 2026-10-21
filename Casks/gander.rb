@@ -14,9 +14,8 @@ cask "gander" do
   binary "#{appdir}/Gander.app/Contents/MacOS/gander-cli", target: "gander"
 
   # Ad-hoc signed, not notarized: Apple Silicon Gatekeeper reports a quarantined copy as "damaged".
-  postflight do
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Gander.app"]
+  postflight_steps do
+    run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/Gander.app"]
   end
 
   caveats <<~EOS
