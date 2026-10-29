@@ -103,7 +103,7 @@ be open with a page loaded. Safari → Settings → Advanced → “Show feature
 `lowercased()`. Default `externalBrowser: "Safari"` is an app name, not bundle ID — resolve via
 `com.apple.Safari` or `/Applications/Safari.app`.
 
-### Carbon `RegisterEventHotKey` for global hotkeys
+### Carbon `RegisterEventHotKey` for global hotkeys (superseded 2026-10-28 — see TASK-5)
 
 Alternatives considered: `CGEventTap` (requires Input Monitoring TCC permission, user dialog),
 `NSEvent.addGlobalMonitorForEvents` (same permission), `MASShortcut` (external dependency).
@@ -167,8 +167,9 @@ in the config drives:
 No inter-instance coordination. Each instance is completely independent.
 
 Second-instance rules (found 2026-10-14 when the `llm` instance replaced the BTT hotkey window):
-- Set every `hotkeys` entry to `null`. Carbon registration is system-wide, so a second
-  instance with the default `cmd+shift+\` fails and shows the "Global Shortcut Unavailable" alert.
+- (Superseded by TASK-5: hotkeys are now local, so no `null` is needed.) Set every `hotkeys` entry
+  to `null`. Carbon registration was system-wide, so a second instance with the default
+  `cmd+shift+\` failed and showed the "Global Shortcut Unavailable" alert.
 - `SMAppService.mainApp` ("Open at Login") launches the bundle without arguments, so it only
   starts `default`. Start other instances with a LaunchAgent that passes `--config`.
 - Both instances share one bundle ID, so they share the WebKit cookie and website-data store.
@@ -1034,3 +1035,21 @@ JSON array, instead of talking to DEVONthink itself. The `llm` instance uses
 - **Verification without screen recording:** read the picker rows through the AX API
   (`AXUIElementCreateApplication(pid)` → walk `AXStaticText`). System Events reported
   0 windows for the non-activating panel. CGWindowList gives the frame.
+
+## TASK-5: the sites shortcut always hit the default instance (fixed, 2026-10-28)
+
+- **Cause:** `HotkeysConfig` fills a missing key with its default. `default.json` sets only `prev`
+  and `next`, so the default instance registered `cmd+shift+\` and `cmd+shift+/` as global Carbon
+  hotkeys. `llm.json` sets all four to `null`. A global hotkey belongs to one process and
+  cannot follow the focused panel. Carbon also takes the key before any local `NSEvent` monitor,
+  so a local monitor added beside it never ran.
+- **Fix:** removed Carbon. All four chords are local, matched in `SidebarPanel`'s key monitor
+  against `config.hotkeys` by physical key code (`parseHotkey` / `hotkeyMatches` in `Config.swift`)
+  while the panel is key. Both instances can use the same chords. Cost: no chord works while
+  another app is frontmost or the panel is hidden. Use the CLI, `gander://` or BetterTouchTool.
+- **llm picker list:** `sitesCommand` output replaces `sites` only on success. On failure the
+  4 static llm sites stay. A 10-row picker with Phind, Anna's Archive and MDN is the default picker.
+- **Cold start (code):** the init path calls `openURL(config.defaultUrl)` and `pickerVisible`
+  starts false, so no code path opens the picker or leaves the page blank. Not reproduced.
+- **Open:** DEVONthink Apple Events authorization for the launchd llm instance is unverified.
+  Terminal runs of `listBookmarks` fail with "Not authorized".

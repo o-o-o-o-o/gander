@@ -68,12 +68,20 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             // byApplyingModifiers([]) recovers the base key regardless of Shift, so ⌘⇧[
             // arrives as "[" not "{" — unlike charactersIgnoringModifiers, which keeps Shift.
             let ch = event.characters(byApplyingModifiers: [])
+            // Config hotkeys are local: they act only while this instance's panel is key.
+            if self.isKeyWindow {
+                let hk = self.config.hotkeys
+                if hotkeyMatches(hk.toggle, event) { self.toggle(); return nil }
+                if hotkeyMatches(hk.sites,  event) { self.toggleSitePicker(); return nil }
+                if hotkeyMatches(hk.next,   event) { self.nextSite(); return nil }
+                if hotkeyMatches(hk.prev,   event) { self.prevSite(); return nil }
+            }
             if cmd && !shift && noExtra && ch == "r" { self.activeWebView?.reload(); return nil }
             if cmd && !shift && noExtra && ch == "[" { self.activeWebView?.goBack(); return nil }
             if cmd && !shift && noExtra && ch == "]" { self.activeWebView?.goForward(); return nil }
             // Site cycling — no isKeyWindow guard, consistent with goBack/goForward above.
             // A local monitor only sees events while we're the active app, so this is already
-            // scoped to "Gander frontmost" (unlike the global Carbon next/prev hotkeys).
+            // scoped to "Gander frontmost".
             // keyCode fallback (33/30) covers layouts where "[" / "]" aren't on those keys.
             if cmd && shift && noExtra && (ch == "[" || event.keyCode == 33) { self.prevSite(); return nil }
             if cmd && shift && noExtra && (ch == "]" || event.keyCode == 30) { self.nextSite(); return nil }

@@ -1,5 +1,4 @@
 import AppKit
-import Carbon
 import ServiceManagement
 import WebKit
 
@@ -7,14 +6,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let config: AppConfig
     var panel: SidebarPanel?
     var statusItem: NSStatusItem?
-
-    // Carbon hotkey refs — kept alive for the app lifetime
-    private var toggleHotkey: EventHotKeyRef?
-    private var sitesHotkey:  EventHotKeyRef?
-    private var nextHotkey:   EventHotKeyRef?
-    private var prevHotkey:   EventHotKeyRef?
-    private var carbonHandler: EventHandlerRef?
-    private var didShowHotkeyFailureAlert = false
 
     private var lastScreenCount: Int = 0
     private var layoutDebounce: DispatchWorkItem?
@@ -57,7 +48,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if !UserDefaults.standard.bool(forKey: "hideMenuBarIcon.\(config.name)") {
             setupMenuBar()
         }
-        setupGlobalHotkeys()
         setupIPC()
         setupURLScheme()
         setupFrameAuto()
@@ -248,92 +238,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .draw(at: .init(x: 1, y: 1))
         img.unlockFocus()
         return img
-    }
-
-    // MARK: Global hotkeys via Carbon RegisterEventHotKey
-    // No Input Monitoring permission needed — works system-wide immediately.
-    // Hotkeys are configured in the JSON config file under the "hotkeys" key.
-
-    private func setupGlobalHotkeys() {
-        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
-                                 eventKind: UInt32(kEventHotKeyPressed))
-        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
-        InstallEventHandler(GetApplicationEventTarget(), { _, event, userData -> OSStatus in
-            guard let userData else { return noErr }
-            var hkID = EventHotKeyID()
-            GetEventParameter(event, UInt32(kEventParamDirectObject), UInt32(typeEventHotKeyID),
-                              nil, MemoryLayout<EventHotKeyID>.size, nil, &hkID)
-            let me = Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue()
-            DispatchQueue.main.async {
-                switch hkID.id {
-                case 1: me.panel?.toggle()
-                case 2: me.panel?.toggleSitePicker()
-                case 3: me.panel?.nextSite()
-                case 4: me.panel?.prevSite()
-                default: break
-                }
-            }
-            return noErr
-        }, 1, &spec, selfPtr, &carbonHandler)
-
-        let sig = OSType(0x47414E44) // 'GAND'
-        registerHotkey(config.hotkeys.toggle, id: 1, sig: sig, ref: &toggleHotkey)
-        registerHotkey(config.hotkeys.sites,  id: 2, sig: sig, ref: &sitesHotkey)
-        registerHotkey(config.hotkeys.next,   id: 3, sig: sig, ref: &nextHotkey)
-        registerHotkey(config.hotkeys.prev,   id: 4, sig: sig, ref: &prevHotkey)
-    }
-
-    private func registerHotkey(_ spec: String?, id: UInt32, sig: OSType, ref: inout EventHotKeyRef?) {
-        guard let spec, let (keyCode, mods) = parseHotkey(spec) else { return }
-        let hkID = EventHotKeyID(signature: sig, id: id)
-        let status = RegisterEventHotKey(keyCode, mods, hkID, GetApplicationEventTarget(), 0, &ref)
-        guard status == noErr else {
-            fputs("Gander: failed to register hotkey '\(spec)' (id=\(id), status=\(status)).\n", stderr)
-            showHotkeyFailureAlertIfNeeded(spec: spec, id: id, status: status)
-            return
-        }
-    }
-
-    private func showHotkeyFailureAlertIfNeeded(spec: String, id: UInt32, status: OSStatus) {
-        guard id == 1, !didShowHotkeyFailureAlert else { return }
-        didShowHotkeyFailureAlert = true
-
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = "Global Shortcut Unavailable"
-            alert.informativeText = "Could not register \(spec) for toggling Gander (status \(status)).\n\nThis usually means another app, or another running copy of Gander, already owns that shortcut. Quit duplicate copies or change hotkeys in ~/.config/gander/default.json."
-            alert.alertStyle = .warning
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-        }
-    }
-
-    private func parseHotkey(_ str: String) -> (keyCode: UInt32, mods: UInt32)? {
-        let parts = str.lowercased().components(separatedBy: "+")
-        guard let keyPart = parts.last, !keyPart.isEmpty else { return nil }
-        var mods: UInt32 = 0
-        for mod in parts.dropLast() {
-            switch mod {
-            case "cmd", "command": mods |= UInt32(cmdKey)
-            case "shift":          mods |= UInt32(shiftKey)
-            case "option", "alt":  mods |= UInt32(optionKey)
-            case "ctrl", "control": mods |= UInt32(controlKey)
-            default: break
-            }
-        }
-        let keyCodes: [String: UInt32] = [
-            "a":0,"b":11,"c":8,"d":2,"e":14,"f":3,"g":5,"h":4,"i":34,"j":38,
-            "k":40,"l":37,"m":46,"n":45,"o":31,"p":35,"q":12,"r":15,"s":1,
-            "t":17,"u":32,"v":9,"w":13,"x":7,"y":16,"z":6,
-            "0":29,"1":18,"2":19,"3":20,"4":21,"5":23,"6":22,"7":26,"8":28,"9":25,
-            "\\":42,"/":44,"]":30,"[":33,"-":27,"=":24,"`":50,";":41,"'":39,
-            ",":43,".":47,"space":49,"return":36,"tab":48,"delete":51,
-            "left":123,"right":124,"up":126,"down":125,
-            "f1":122,"f2":120,"f3":99,"f4":118,"f5":96,"f6":97,"f7":98,
-            "f8":100,"f9":101,"f10":109,"f11":103,"f12":111,
-        ]
-        guard let keyCode = keyCodes[keyPart] else { return nil }
-        return (keyCode, mods)
     }
 
     // MARK: IPC — NSDistributedNotificationCenter

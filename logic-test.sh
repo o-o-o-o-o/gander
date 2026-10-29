@@ -101,6 +101,12 @@ struct LogicTests {
         expect(hMissing.sites  == "cmd+shift+/",   "HotkeysConfig: missing sites keeps default")
         expect(hMissing.next   == "cmd+shift+]",   "HotkeysConfig: missing next keeps default")
         expect(hMissing.prev   == "cmd+shift+[",   "HotkeysConfig: missing prev keeps default")
+        let pk = parseHotkey("cmd+shift+/")
+        expect(pk?.keyCode == 44 && pk?.mods == [.command, .shift], "parseHotkey: cmd+shift+/")
+        expect(parseHotkey("cmd+alt+x")?.mods == [.command, .option], "parseHotkey: alt is option")
+        expect(parseHotkey(nil) == nil && parseHotkey("cmd+bogus") == nil, "parseHotkey: nil and unknown key")
+        expect(parseHotkey("meta+shift+x") == nil, "parseHotkey: unknown modifier is rejected")
+        expect(parseHotkey("space") == nil && parseHotkey("f") == nil, "parseHotkey: no modifier is rejected")
 
         // ── NSColor hex parsing ───────────────────────────────────────────────
         expect(NSColor(hex: "#4A90D9") != nil, "NSColor: parse 6-digit hex with leading #")

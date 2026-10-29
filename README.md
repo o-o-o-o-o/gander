@@ -259,7 +259,7 @@ Launch both:
 .build/release/GanderApp --config ~/.config/gander/personal.json &
 ```
 
-Set every `hotkeys` entry of the second instance to `null`. Two instances cannot register the same global shortcut. Drive the second instance from the CLI, or bind a key in another tool to `gander <name> toggle`.
+Hotkeys are local. An instance answers a chord only while its own panel is key, so two instances can use the same chords. Show, hide and focus come from the CLI, `gander://`, or a key bound in another tool to `gander <name> toggle`.
 
 To start an instance at login, use a LaunchAgent. The menu's "Open at Login" registers only the default instance.
 

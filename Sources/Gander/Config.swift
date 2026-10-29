@@ -3,7 +3,8 @@ import Foundation
 
 // Hotkey strings use the format "cmd+shift+\\" — modifiers are cmd/shift/option/ctrl,
 // key is a single character or name (f1–f12, space, return, left, right, up, down).
-// Set a key to null or "" to disable it.
+// Set a key to null or "" to disable it. Hotkeys are local: they fire only while the
+// instance's own panel is key (see SidebarPanel's key monitor).
 struct HotkeysConfig: Codable {
     var toggle: String? = "cmd+shift+\\"
     var sites:  String? = "cmd+shift+/"
@@ -266,4 +267,41 @@ func canonicalURLString(_ raw: String) -> String {
     }
 
     return comps.string ?? trimmed
+}
+
+private let hotkeyKeyCodes: [String: UInt16] = [
+    "a":0,"b":11,"c":8,"d":2,"e":14,"f":3,"g":5,"h":4,"i":34,"j":38,
+    "k":40,"l":37,"m":46,"n":45,"o":31,"p":35,"q":12,"r":15,"s":1,
+    "t":17,"u":32,"v":9,"w":13,"x":7,"y":16,"z":6,
+    "0":29,"1":18,"2":19,"3":20,"4":21,"5":23,"6":22,"7":26,"8":28,"9":25,
+    "\\":42,"/":44,"]":30,"[":33,"-":27,"=":24,"`":50,";":41,"'":39,
+    ",":43,".":47,"space":49,"return":36,"tab":48,"delete":51,
+    "left":123,"right":124,"up":126,"down":125,
+    "f1":122,"f2":120,"f3":99,"f4":118,"f5":96,"f6":97,"f7":98,
+    "f8":100,"f9":101,"f10":109,"f11":103,"f12":111,
+]
+
+// Physical key code + exact modifier set, so a chord matches on any keyboard layout.
+func parseHotkey(_ str: String?) -> (keyCode: UInt16, mods: NSEvent.ModifierFlags)? {
+    guard let str else { return nil }
+    let parts = str.lowercased().components(separatedBy: "+")
+    guard let keyPart = parts.last, let keyCode = hotkeyKeyCodes[keyPart] else { return nil }
+    var mods: NSEvent.ModifierFlags = []
+    for mod in parts.dropLast() {
+        switch mod {
+        case "cmd", "command":  mods.insert(.command)
+        case "shift":           mods.insert(.shift)
+        case "option", "alt":   mods.insert(.option)
+        case "ctrl", "control": mods.insert(.control)
+        default: return nil
+        }
+    }
+    // A bare key would swallow ordinary typing in the web view.
+    return mods.isEmpty ? nil : (keyCode, mods)
+}
+
+func hotkeyMatches(_ spec: String?, _ event: NSEvent) -> Bool {
+    guard let hk = parseHotkey(spec) else { return false }
+    return event.keyCode == hk.keyCode
+        && event.modifierFlags.intersection([.command, .shift, .option, .control]) == hk.mods
 }
