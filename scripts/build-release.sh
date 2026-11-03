@@ -17,9 +17,12 @@ echo "  UrBrowseApp: $(wc -c < "$APP_BIN" | tr -d ' ') bytes at $APP_BIN"
 echo "  ur-browse:   $(wc -c < "$CLI_BIN" | tr -d ' ') bytes at $CLI_BIN"
 
 # Sanity check: app binary must contain AppDelegate (only in the app target)
-if ! nm "$APP_BIN" 2>/dev/null | grep -q "AppDelegate"; then
+# Read all of nm's output first: `nm | grep -q` under pipefail can fail when grep exits early.
+SYMBOLS="$(nm "$APP_BIN" 2>/dev/null || true)"
+if ! grep -q "AppDelegate" <<<"${SYMBOLS}"; then
     echo "❌ $APP_BIN does not look like the app binary (no AppDelegate symbol)" >&2
-    nm "$APP_BIN" 2>/dev/null | head -10 >&2
+    echo "  nm printed $(wc -l <<<"${SYMBOLS}" | tr -d ' ') lines" >&2
+    head -10 <<<"${SYMBOLS}" >&2
     exit 1
 fi
 echo "  ✓ app binary verified (AppDelegate present)"
