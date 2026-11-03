@@ -203,7 +203,15 @@ public struct UrCLI {
 
     private func startPot(_ request: Request) throws {
         let name = request.args.first ?? request.pot
+        guard Pot.isValidName(name) else { throw UrError("invalid pot name '\(name)'") }
         let pot = spec.pot(name)
+        if request.flag("login") {
+            // Works for existing pots too (e.g. ones migrated from an older version).
+            try installLaunchAgent(pot)
+            print("pot '\(name)' starts at login (\(pot.launchAgentURL.path))")
+            if !pot.isRunning { try waitUntilRunning(pot) }
+            return
+        }
         if pot.isRunning { print("pot '\(name)' is already running"); return }
         try launch(pot)
         try waitUntilRunning(pot)
@@ -287,14 +295,25 @@ public struct UrCLI {
         try FileManager.default.createDirectory(at: pot.launchAgentURL.deletingLastPathComponent(),
                                                 withIntermediateDirectories: true)
         try data.write(to: pot.launchAgentURL)
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        proc.arguments = ["bootstrap", "gui/\(getuid())", pot.launchAgentURL.path]
-        try proc.run()
-        proc.waitUntilExit()
-        guard proc.terminationStatus == 0 else {
+        // Unload a previous copy first so re-running `--login` updates it instead of failing.
+        // bootstrap then starts it (RunAtLoad); if the pot is already running, that second copy
+        // finds the live socket and exits, which is harmless.
+        _ = try? launchctl(["bootout", "gui/\(getuid())/\(pot.launchAgentLabel)"])
+        guard try launchctl(["bootstrap", "gui/\(getuid())", pot.launchAgentURL.path]) == 0 else {
             throw UrError("launchctl bootstrap failed for \(pot.launchAgentURL.path)")
         }
+    }
+
+    @discardableResult
+    private func launchctl(_ arguments: [String]) throws -> Int32 {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        proc.arguments = arguments
+        proc.standardOutput = FileHandle.nullDevice
+        proc.standardError = FileHandle.nullDevice
+        try proc.run()
+        proc.waitUntilExit()
+        return proc.terminationStatus
     }
 }
 

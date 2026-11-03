@@ -95,7 +95,7 @@ Running pots:
 
 - A second launch of an already-running pot exits quietly, so a LaunchAgent and "Open at Login"
   can never leave two copies of the same pot. (The menu's "Open at Login" registers only the
-  default pot; use `--login` for the others.)
+  default pot, so the menu item only appears there; use `start --login` for the others.)
 - `open`, `site`, `show`, `toggle` and `picker` start a stopped pot automatically. Other commands
   fail with **exit code 2** ("pot is not running"). Other errors exit 1.
 - Hotkeys are local: a pot answers a chord only while its own panel is key, so pots can share the
@@ -336,7 +336,7 @@ Usage: ur-browse [pot] <command> [args] [options]
 Pots:
   ur-browse pots [--json]                  list pots and whether they are running
   ur-browse throw <pot> [--glaze #hex] [--url u] [--from pot] [--login] [--no-start]
-  ur-browse <pot> start                    start a stopped pot
+  ur-browse <pot> start [--login]          start a stopped pot (--login: also at login)
   ur-browse <pot> quit
 
 Window:
@@ -408,8 +408,8 @@ ur-browse://work/frame?x=80&y=40&width=420&height=1000
 
 The first path component is the pot when it is not a command name. All pots share one bundle, so
 macOS hands the URL to an arbitrary running process of it; that process forwards it to the target
-pot's socket. If the target pot is not running the URL is dropped (a message goes to stderr) — use
-the CLI, which autostarts, when that matters.
+pot's socket. Like the CLI, `open`, `site`, `show`, `toggle` and `picker` URLs start a stopped
+pot first; other verbs for a stopped pot are dropped with a message on stderr.
 
 ```bash
 open -g "ur-browse://toggle"
@@ -458,12 +458,10 @@ Contributor notes: [CONTRIBUTING.md](CONTRIBUTING.md).
   ```bash
   launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/io.gander.work.plist
   rm ~/Library/LaunchAgents/io.gander.*.plist
-  # `throw` refuses to overwrite an existing pot, so move the migrated one aside first:
-  mv ~/.config/ur/browse/work ~/.config/ur/browse/work-old
-  ur-browse throw work --from work-old --login
+  ur-browse work start --login     # LaunchAgent for the (migrated) existing pot
   ```
 
-  (`--login` is only available on `throw`.) The new agent is `io.ur.browse.<pot>.plist`.
+  The new agent is `io.ur.browse.<pot>.plist`; re-running `start --login` updates it.
 - **Homebrew.** The tap maps the old cask name through `cask_renames.json`; if `brew upgrade` does
   not pick it up, run `brew install --cask ur-browse`.
 

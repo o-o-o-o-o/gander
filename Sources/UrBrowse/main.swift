@@ -39,29 +39,30 @@ func migrateLegacyConfig(into pot: Pot) {
     }
 }
 
-var config: AppConfig
+// Top-level names in main.swift are module-wide globals; the `launch` prefix keeps them from
+// being confused with the `config` / `pot` properties used throughout the app.
+var launchConfig: AppConfig
 if let path = configPath {
-    do { config = try AppConfig.load(from: path) }
+    do { launchConfig = try AppConfig.load(from: path) }
     catch { die("cannot load config '\(path)': \(error)") }
-    if let potName { config.name = potName }
+    if let potName { launchConfig.name = potName }
 } else {
     let name = potName ?? Pot.defaultName
     guard Pot.isValidName(name) else { die("invalid pot name '\(name)'") }
-    let pot = Pot(app: BrowseSpec.spec.app, name: name)
-    migrateLegacyConfig(into: pot)
-    if FileManager.default.fileExists(atPath: pot.configURL.path) {
-        do { config = try AppConfig.load(from: pot.configURL.path) }
-        catch { die("cannot load config '\(pot.configURL.path)': \(error)") }
+    let named = Pot(app: BrowseSpec.spec.app, name: name)
+    migrateLegacyConfig(into: named)
+    if FileManager.default.fileExists(atPath: named.configURL.path) {
+        do { launchConfig = try AppConfig.load(from: named.configURL.path) }
+        catch { die("cannot load config '\(named.configURL.path)': \(error)") }
     } else {
-        config = AppConfig()
+        launchConfig = AppConfig()
     }
-    config.name = name  // the folder is the pot's identity, whatever "name" the file says
+    launchConfig.name = name  // the folder is the pot's identity, whatever "name" the file says
 }
-guard Pot.isValidName(config.name) else { die("invalid pot name '\(config.name)'") }
+guard Pot.isValidName(launchConfig.name) else { die("invalid pot name '\(launchConfig.name)'") }
 
-let pot = Pot(app: BrowseSpec.spec.app, name: config.name)
-let app = NSApplication.shared
-app.setActivationPolicy(.accessory)
-let delegate = AppDelegate(config: config, pot: pot)
-app.delegate = delegate
-app.run()
+let launchPot = Pot(app: BrowseSpec.spec.app, name: launchConfig.name)
+let launchDelegate = AppDelegate(config: launchConfig, pot: launchPot)
+NSApplication.shared.setActivationPolicy(.accessory)
+NSApplication.shared.delegate = launchDelegate
+NSApplication.shared.run()

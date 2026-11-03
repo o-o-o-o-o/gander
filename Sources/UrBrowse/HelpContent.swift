@@ -134,7 +134,7 @@ enum HelpContent {
         <pre>ur-browse pots [--json]
         ur-browse throw work --glaze '#2ECC71' --login
         ur-browse throw play --from work --no-start
-        ur-browse work start
+        ur-browse work start [--login]
         ur-browse work quit</pre>
         <p class="dim"><code>--login</code> starts the pot at login via a LaunchAgent. <code>open</code>,
         <code>site</code>, <code>show</code>, <code>toggle</code> and <code>picker</code> start a stopped pot

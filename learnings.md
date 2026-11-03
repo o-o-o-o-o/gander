@@ -1163,8 +1163,12 @@ not necessarily the pot named in the URL.
 
 **Fix.** `AppDelegate.handleURL` parses the URL into a `Request`; if `request.pot` is this process's
 pot it handles it, otherwise it sends the request to the target pot's socket on a background queue.
-Known limit: a URL for a pot that is not running is dropped with a stderr message (no autostart —
-that is the CLI's job). `open`, `site`, `show`, `toggle` and `picker` are autostarted by the CLI only.
+A URL for a stopped pot whose verb is in `autostartVerbs` (`open`, `site`, `show`, `toggle`,
+`picker`) starts that pot first (`NSWorkspace.openApplication` with
+`createsNewApplicationInstance = true` and `--pot <name>`; a dev build spawns its binary), waits up
+to 8 s for its socket, then forwards. Other verbs for a stopped pot are dropped with a stderr
+message. Side effect: if no pot was running at all, LaunchServices first launches the default pot
+to receive the URL, and it stays running.
 
 ### Single-module logic tests and #if canImport(UrKit)
 
@@ -1199,8 +1203,8 @@ logic test can't — real socket, real pot, isolated by `UR_CONFIG_HOME`, `UR_RU
 - Config moved to `~/.config/ur/browse/<pot>/config.json`, copied from `~/.config/gander/<name>.json`
   on first start; `color` → `glaze` (old key read).
 - Cookies reset once (per-pot data store). Old LaunchAgents (`io.gander.*.plist`) pass `--config`
-  and keep working but should be replaced with `ur-browse throw <pot> --login`. Because `throw` will
-  not overwrite an existing pot, the migrated pot has to be moved aside first (`--from` it).
+  and keep working but should be replaced with `ur-browse <pot> start --login`, which writes (or
+  updates) a LaunchAgent for an existing pot; `throw --login` does the same for a new one.
 - `build.sh` and `build-release.sh` share `scripts/bundle.sh`, so the local and CI bundle layout
   can no longer drift (the original `build.sh`-without-CLI bug, see above).
 - New in the CLI: `pots`, `throw`, `start`, `site`, `sites --json|--alfred|--list`, `current`, `info`,

@@ -119,7 +119,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(item("Reload Slip Scripts", #selector(reloadSlipFromMenu)))
         menu.addItem(item("Show Pot Folder",     #selector(showPotFolder)))
         menu.addItem(.separator())
-        menu.addItem(item("Open at Login",        #selector(toggleLaunchAtLogin),      tag: 101))
+        // SMAppService.mainApp launches the bundle without arguments, i.e. only the default pot.
+        // Other pots: `ur-browse <pot> start --login` (a per-pot LaunchAgent).
+        if pot.name == Pot.defaultName {
+            menu.addItem(item("Open at Login",    #selector(toggleLaunchAtLogin),      tag: 101))
+        }
         menu.addItem(item("Hide Menu Bar Icon…",  #selector(confirmHideMenuBarIcon)))
         menu.addItem(.separator())
         menu.addItem(item("Help", #selector(showHelp)))
@@ -363,13 +367,46 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         let target = spec.pot(request.pot)
-        DispatchQueue.global(qos: .userInitiated).async {
+        let autostart = spec.autostartVerbs.contains(request.verb)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            if !target.isRunning {
+                guard autostart, let self else {
+                    fputs("Ur Browse: pot '\(target.name)' is not running (\(raw))\n", stderr)
+                    return
+                }
+                self.launchPot(target)
+                let deadline = Date().addingTimeInterval(8)
+                while !target.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.1) }
+            }
             do {
                 let response = try IPCClient.send(request, to: target.socketURL)
                 if !response.ok { fputs("Ur Browse: \(raw): \(response.error ?? "failed")\n", stderr) }
             } catch {
-                fputs("Ur Browse: pot '\(target.name)' is not running (\(raw))\n", stderr)
+                fputs("Ur Browse: pot '\(target.name)' did not answer (\(raw)): \(error)\n", stderr)
             }
+        }
+    }
+
+    /// Starts another pot as a separate process of this same app (or dev binary).
+    private func launchPot(_ target: Pot) {
+        let bundle = Bundle.main.bundleURL
+        guard bundle.pathExtension == "app" else {
+            // Dev build (.build/release/UrBrowseApp): run the binary directly.
+            guard let exe = Bundle.main.executableURL else { return }
+            let proc = Process()
+            proc.executableURL = exe
+            proc.arguments = ["--pot", target.name]
+            proc.standardOutput = FileHandle.nullDevice
+            proc.standardError = FileHandle.nullDevice
+            try? proc.run()
+            return
+        }
+        let cfg = NSWorkspace.OpenConfiguration()
+        cfg.createsNewApplicationInstance = true   // a new process even though this one is running
+        cfg.activates = false
+        cfg.arguments = ["--pot", target.name]
+        NSWorkspace.shared.openApplication(at: bundle, configuration: cfg) { _, error in
+            if let error { fputs("Ur Browse: could not start pot '\(target.name)': \(error)\n", stderr) }
         }
     }
 }

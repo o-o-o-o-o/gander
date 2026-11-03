@@ -92,10 +92,12 @@ struct SiteStore {
     /// `?q=term` are associated with their parent site entry.
     func site(matching urlString: String) -> SiteConfig? {
         if let exact = site(forURL: urlString) { return exact }
-        guard let comps = URLComponents(string: urlString), let host = comps.host else { return nil }
+        guard let comps = URLComponents(string: urlString), let host = comps.host?.lowercased() else { return nil }
+        // "" and "/" are the same path ("https://github.com" vs "https://github.com/?q=x").
+        func path(_ c: URLComponents) -> String { c.path.isEmpty ? "/" : c.path }
         return all.first {
-            guard let sc = URLComponents(string: $0.url), let sh = sc.host else { return false }
-            return sh == host && sc.path == comps.path
+            guard let sc = URLComponents(string: $0.url), let sh = sc.host?.lowercased() else { return false }
+            return sh == host && path(sc) == path(comps)
         }
     }
 

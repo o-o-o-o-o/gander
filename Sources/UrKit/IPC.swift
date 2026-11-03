@@ -221,7 +221,7 @@ public final class IPCServer {
             finish(.failure("malformed request"))
             return
         }
-        DispatchQueue.main.async { [handler, queue] in
+        DispatchQueue.main.async { [handler = self.handler, queue = self.queue] in
             var replied = false
             handler(request) { response in
                 guard !replied else { return }

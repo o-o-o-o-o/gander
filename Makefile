@@ -10,7 +10,7 @@ run:
 
 install: build
 	@echo "✓ Local build: $(CURDIR)/Ur Browse.app"
-	@echo "  Run: open "Ur Browse.app""
+	@echo '  Run: open "Ur Browse.app"'
 
 logic-test:
 	bash logic-test.sh

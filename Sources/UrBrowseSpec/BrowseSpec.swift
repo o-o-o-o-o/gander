@@ -37,7 +37,8 @@ public enum BrowseSpec {
         Pots (instances):
           ur-browse pots [--json]                  list pots and whether they are running
           ur-browse throw <pot> [--glaze #hex] [--url u] [--from pot] [--login] [--no-start]
-          ur-browse <pot> start                    start a stopped pot
+          ur-browse <pot> start [--login]          start a stopped pot (--login: also at login)
+          ur-browse <pot> info --json              version, glaze, site count, slip files
           ur-browse <pot> quit
 
         Window:
@@ -56,12 +57,11 @@ public enum BrowseSpec {
         Slip (user scripts in ~/.config/ur/browse/<pot>/slip/):
           ur-browse [pot] slip [--list]            reload slip scripts (or list them)
 
-          ur-browse [pot] info --json
-
         Frame values: points (420), percent (30%), or full/100%; --x/--y also take
         left/right/top/bottom. Omit [pot] for the default pot.
 
         URL scheme: ur-browse://[pot/]<command>[/args…][?option=value]
           e.g. ur-browse://work/site/gh/o-o-o-o-o/ur-browse
+          (like the CLI, open/site/show/toggle/picker start a stopped pot)
         """
 }

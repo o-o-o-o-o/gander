@@ -186,7 +186,7 @@ struct LogicTests {
         expect(fails(["open", "https://a.example", "--shortcut", "10"]), "cmd: shortcut out of range fails")
         expect(fails(["show", "--bogus", "1"]), "cmd: unknown option fails")
         expect(fails(["frame"]), "cmd: frame without preset or dimensions fails")
-        expect(fails(["notacommand"]) , "cmd: unknown verb fails")
+        expect(fails(["work", "notacommand"]), "cmd: unknown verb fails")  // bare "notacommand" is a pot name
         expect(try cmd(["frame", "laptop"]) == .frame(FrameConfig(preset: "laptop")), "cmd: frame preset")
         expect(try cmd(["sites"]) == .picker, "cmd: bare sites toggles the picker (Gander compat)")
         expect(try cmd(["sites", "--list"]) == .listSites, "cmd: sites --list lists")
