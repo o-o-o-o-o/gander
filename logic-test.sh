@@ -3,9 +3,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-TMP_DIR="$(mktemp -d /tmp/gander-logic.XXXXXX)"
+TMP_DIR="$(mktemp -d /tmp/ur-browse-logic.XXXXXX)"
 RUNNER="${TMP_DIR}/logic-tests.swift"
-BIN="${TMP_DIR}/gander-logic-tests"
+BIN="${TMP_DIR}/ur-browse-logic-tests"
 
 cleanup() {
     rm -rf "${TMP_DIR}"
@@ -119,9 +119,9 @@ struct LogicTests {
         // ── notification name scoping ─────────────────────────────────────────
         let cfgDefault = AppConfig(name: "default")
         let cfgWork    = AppConfig(name: "work")
-        expect(cfgDefault.notifToggle.rawValue == "com.gander.default.toggle",
+        expect(cfgDefault.notifToggle.rawValue == "ur.browse.default.toggle",
                "notification names should be scoped to instance name")
-        expect(cfgWork.notifToggle.rawValue == "com.gander.work.toggle",
+        expect(cfgWork.notifToggle.rawValue == "ur.browse.work.toggle",
                "different instances should have different notification names")
         expect(cfgDefault.notifToggle != cfgWork.notifToggle,
                "default and work toggle notifications must not collide")
@@ -222,6 +222,6 @@ SWIFT
 
 PROJECT_DIR="$(pwd)"
 # Compile from TMP_DIR so swiftc's intermediate .o files go there, not the project root.
-(cd "${TMP_DIR}" && swiftc "${PROJECT_DIR}/Sources/Gander/Config.swift" \
-    "${PROJECT_DIR}/Sources/Gander/FrameLayout.swift" "${RUNNER}" -o "${BIN}")
+(cd "${TMP_DIR}" && swiftc "${PROJECT_DIR}/Sources/UrBrowse/Config.swift" \
+    "${PROJECT_DIR}/Sources/UrBrowse/FrameLayout.swift" "${RUNNER}" -o "${BIN}")
 "${BIN}"

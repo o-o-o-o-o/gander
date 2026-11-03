@@ -39,16 +39,16 @@ struct FrameOptions {
 func usage() -> String {
     """
     Usage:
-      gander [instance] toggle
-      gander [instance] show [--x v --y v --width v --height v]
-      gander [instance] hide
-      gander [instance] sites
-      gander [instance] next
-      gander [instance] prev
-      gander [instance] open <url> [--shortcut 1-9] [--x v --y v --width v --height v]
-      gander [instance] frame <preset> [--x v --y v --width v --height v]
-      gander [instance] frame --x v --y v --width v --height v
-      gander [instance] menubar
+      ur-browse [instance] toggle
+      ur-browse [instance] show [--x v --y v --width v --height v]
+      ur-browse [instance] hide
+      ur-browse [instance] sites
+      ur-browse [instance] next
+      ur-browse [instance] prev
+      ur-browse [instance] open <url> [--shortcut 1-9] [--x v --y v --width v --height v]
+      ur-browse [instance] frame <preset> [--x v --y v --width v --height v]
+      ur-browse [instance] frame --x v --y v --width v --height v
+      ur-browse [instance] menubar
 
     Dimension values: points (420), percent (30%), or full/max/100% for height/width.
     Position: points, percent, or right/left/bottom/top for --x/--y.
@@ -58,7 +58,7 @@ func usage() -> String {
 func parseFrameValue(name: String, rawValue: String) -> String {
     let v = rawValue.trimmingCharacters(in: .whitespaces)
     if v.isEmpty {
-        fputs("gander: '\(name)' requires a value\n\(usage())\n", stderr)
+        fputs("ur-browse: '\(name)' requires a value\n\(usage())\n", stderr)
         exit(1)
     }
     return v
@@ -75,7 +75,7 @@ func parseURLAndFrame(_ args: [String], requiresURL: Bool) -> (String?, FrameOpt
         case "--x", "--y", "--width", "--height":
             index += 1
             guard index < args.count else {
-                fputs("gander: '\(arg)' requires a value\n\(usage())\n", stderr)
+                fputs("ur-browse: '\(arg)' requires a value\n\(usage())\n", stderr)
                 exit(1)
             }
             let value = parseFrameValue(name: arg, rawValue: args[index])
@@ -88,7 +88,7 @@ func parseURLAndFrame(_ args: [String], requiresURL: Bool) -> (String?, FrameOpt
             }
         default:
             if arg.hasPrefix("--") {
-                fputs("gander: unknown option '\(arg)'\n\(usage())\n", stderr)
+                fputs("ur-browse: unknown option '\(arg)'\n\(usage())\n", stderr)
                 exit(1)
             }
             if requiresURL && url == nil {
@@ -96,7 +96,7 @@ func parseURLAndFrame(_ args: [String], requiresURL: Bool) -> (String?, FrameOpt
             } else if frame.preset == nil && !requiresURL {
                 frame.preset = arg
             } else {
-                fputs("gander: unexpected argument '\(arg)'\n\(usage())\n", stderr)
+                fputs("ur-browse: unexpected argument '\(arg)'\n\(usage())\n", stderr)
                 exit(1)
             }
         }
@@ -104,7 +104,7 @@ func parseURLAndFrame(_ args: [String], requiresURL: Bool) -> (String?, FrameOpt
     }
 
     if requiresURL && url == nil {
-        fputs("gander: 'open' requires a URL\n\(usage())\n", stderr)
+        fputs("ur-browse: 'open' requires a URL\n\(usage())\n", stderr)
         exit(1)
     }
 
@@ -126,7 +126,7 @@ if args.isEmpty {
     command = args.isEmpty ? "toggle" : args.removeFirst()
 }
 
-let prefix = "com.gander.\(instanceName)"
+let prefix = "ur.browse.\(instanceName)"
 let nc = DistributedNotificationCenter.default()
 
 switch command {
@@ -152,11 +152,11 @@ case "open":
         if args[i] == "--shortcut" {
             i += 1
             guard i < args.count else {
-                fputs("gander: '--shortcut' requires a value (1–9)\n\(usage())\n", stderr)
+                fputs("ur-browse: '--shortcut' requires a value (1–9)\n\(usage())\n", stderr)
                 exit(1)
             }
             guard let n = Int(args[i]), (1...9).contains(n) else {
-                fputs("gander: '--shortcut' requires a number between 1 and 9\n\(usage())\n", stderr)
+                fputs("ur-browse: '--shortcut' requires a number between 1 and 9\n\(usage())\n", stderr)
                 exit(1)
             }
             shortcut = n
@@ -174,7 +174,7 @@ case "open":
 case "frame":
     let (_, frame) = parseURLAndFrame(args, requiresURL: false)
     guard !frame.isEmpty else {
-        fputs("gander: 'frame' requires a preset name or at least one of --x, --y, --width, --height\n\(usage())\n", stderr)
+        fputs("ur-browse: 'frame' requires a preset name or at least one of --x, --y, --width, --height\n\(usage())\n", stderr)
         exit(1)
     }
     nc.postNotificationName(.init("\(prefix).frame"), object: nil,
@@ -182,7 +182,7 @@ case "frame":
 case "menubar":
     nc.postNotificationName(.init("\(prefix).menubar"), object: nil, deliverImmediately: true)
 default:
-    fputs("gander: unknown command '\(command)'\n\(usage())\n", stderr)
+    fputs("ur-browse: unknown command '\(command)'\n\(usage())\n", stderr)
     exit(1)
 }
 

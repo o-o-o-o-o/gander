@@ -110,7 +110,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
         menu.delegate = self
-        let title = config.name == "default" ? "Gander" : "Gander — \(config.name)"
+        let title = config.name == "default" ? "Ur Browse" : "Ur Browse — \(config.name)"
 
         func item(_ t: String, _ sel: Selector, tag: Int = 0) -> NSMenuItem {
             let i = NSMenuItem(title: t, action: sel, keyEquivalent: "")
@@ -155,10 +155,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.messageText = "Hide Menu Bar Icon?"
         alert.informativeText = """
-            The Gander icon will be removed from the menu bar.
+            The Ur Browse icon will be removed from the menu bar.
 
             You can still use \(hotkey) to show or hide the sidebar. To restore the icon at any time, run:
-                gander menubar
+                ur-browse menubar
             """
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Hide Icon")
@@ -198,7 +198,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered, defer: false
         )
-        panel.title = name == "default" ? "Gander Help" : "Gander Help — \(name)"
+        panel.title = name == "default" ? "Ur Browse Help" : "Ur Browse Help — \(name)"
         panel.isReleasedWhenClosed = false
         panel.center()
 
@@ -304,7 +304,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func handleURL(_ event: NSAppleEventDescriptor, withReplyEvent: NSAppleEventDescriptor) {
         guard let raw   = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue,
               let url   = URL(string: raw),
-              url.scheme == "gander" else { return }
+              ["ur-browse", "gander"].contains(url.scheme ?? "") else { return }
 
         let parts  = url.pathComponents.filter { $0 != "/" }
         let target = parts.count > 1 ? parts[0] : (url.host ?? "default")

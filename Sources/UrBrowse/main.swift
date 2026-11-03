@@ -16,13 +16,13 @@ if let path = configPath {
     do {
         config = try AppConfig.load(from: path)
     } catch {
-        fputs("Gander: cannot load config '\(path)': \(error)\n", stderr)
+        fputs("Ur Browse: cannot load config '\(path)': \(error)\n", stderr)
         exit(1)
     }
 } else {
-    // Fall back to ~/.config/gander/default.json if it exists
-    let fallback = ("~/.config/gander/default.json" as NSString).expandingTildeInPath
-    config = (try? AppConfig.load(from: fallback)) ?? AppConfig()
+    // ~/.config/ur/browse/default/config.json, then the pre-rename ~/.config/gander/default.json
+    let paths = ["~/.config/ur/browse/default/config.json", "~/.config/gander/default.json"]
+    config = paths.lazy.compactMap { try? AppConfig.load(from: $0) }.first ?? AppConfig()
 }
 
 let app = NSApplication.shared

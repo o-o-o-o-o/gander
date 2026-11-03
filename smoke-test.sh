@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 INSTANCE_NAME="smoke-${RANDOM}-${RANDOM}"
-TMP_DIR="$(mktemp -d /tmp/gander-smoke.XXXXXX)"
+TMP_DIR="$(mktemp -d /tmp/ur-browse-smoke.XXXXXX)"
 CONFIG_PATH="${TMP_DIR}/${INSTANCE_NAME}.json"
 APP_PID=""
 FAILED=0
@@ -33,17 +33,17 @@ cat > "${CONFIG_PATH}" <<EOF
 }
 EOF
 
-if [[ ! -x ".build/release/GanderApp" ]]; then
-    echo "Missing .build/release/GanderApp; run bash build.sh first" >&2
+if [[ ! -x ".build/release/UrBrowseApp" ]]; then
+    echo "Missing .build/release/UrBrowseApp; run bash build.sh first" >&2
     exit 1
 fi
 
-if [[ ! -x ".build/release/gander" ]]; then
-    echo "Missing .build/release/gander; run bash build.sh first" >&2
+if [[ ! -x ".build/release/ur-browse" ]]; then
+    echo "Missing .build/release/ur-browse; run bash build.sh first" >&2
     exit 1
 fi
 
-CLI=".build/release/gander"
+CLI=".build/release/ur-browse"
 
 # Run a CLI command and verify the app is still alive afterward.
 cmd() {
@@ -51,7 +51,7 @@ cmd() {
     "${CLI}" "$@"
     if ! kill -0 "${APP_PID}" 2>/dev/null; then
         echo "  ✗ ${label} — app crashed" >&2
-        cat /tmp/gander-smoke.log >&2 || true
+        cat /tmp/ur-browse-smoke.log >&2 || true
         FAILED=1
         return 1
     fi
@@ -70,7 +70,7 @@ cmd_fails() {
 }
 
 echo "==> Launching isolated smoke instance: ${INSTANCE_NAME}"
-.build/release/GanderApp --config "${CONFIG_PATH}" >/tmp/gander-smoke.log 2>&1 &
+.build/release/UrBrowseApp --config "${CONFIG_PATH}" >/tmp/ur-browse-smoke.log 2>&1 &
 APP_PID=$!
 
 # Wait up to 4 seconds for the app to start
@@ -81,7 +81,7 @@ done
 
 if ! kill -0 "${APP_PID}" 2>/dev/null; then
     echo "Smoke instance failed to start" >&2
-    cat /tmp/gander-smoke.log >&2 || true
+    cat /tmp/ur-browse-smoke.log >&2 || true
     exit 1
 fi
 
@@ -117,7 +117,7 @@ cmd_fails "unknown option exits non-zero"        "${INSTANCE_NAME}" show --bogus
 cmd_fails "shortcut out of range exits non-zero" "${INSTANCE_NAME}" open https://example.com --shortcut 10
 
 echo "==> Checking bundle assets"
-if [[ ! -f "Gander.app/Contents/Resources/greg.png" ]]; then
+if [[ ! -f "Ur Browse.app/Contents/Resources/greg.png" ]]; then
     echo "  ✗ expected processed menubar icon inside app bundle" >&2
     FAILED=1
 else

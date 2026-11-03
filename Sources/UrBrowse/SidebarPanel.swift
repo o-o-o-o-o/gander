@@ -81,7 +81,7 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             if cmd && !shift && noExtra && ch == "]" { self.activeWebView?.goForward(); return nil }
             // Site cycling — no isKeyWindow guard, consistent with goBack/goForward above.
             // A local monitor only sees events while we're the active app, so this is already
-            // scoped to "Gander frontmost".
+            // scoped to "Ur Browse frontmost".
             // keyCode fallback (33/30) covers layouts where "[" / "]" aren't on those keys.
             if cmd && shift && noExtra && (ch == "[" || event.keyCode == 33) { self.prevSite(); return nil }
             if cmd && shift && noExtra && (ch == "]" || event.keyCode == 30) { self.nextSite(); return nil }
@@ -273,7 +273,7 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     // MARK: Session management
 
     private func makeWebView() -> WKWebView {
-        let wv = GanderWebView(frame: .zero, configuration: Self.makeWebViewConfiguration())
+        let wv = BrowseWebView(frame: .zero, configuration: Self.makeWebViewConfiguration())
         wv.translatesAutoresizingMaskIntoConstraints = false
         // Default WKWebView UA omits "Version/… Safari/…"; some login flows reject that.
         wv.customUserAgent = Self.safariUserAgent
@@ -810,7 +810,7 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     // MARK: Chrome — toolbar & color stripe
 
     private func setupToolbar() {
-        let tb = NSToolbar(identifier: "Gander-\(config.name)")
+        let tb = NSToolbar(identifier: "UrBrowse-\(config.name)")
         tb.delegate = self
         tb.displayMode = .iconOnly
         tb.autosavesConfiguration = false

@@ -141,15 +141,15 @@ struct AppConfig: Codable {
     }
 
     // Notification names are scoped per instance so multiple instances coexist
-    var notifToggle: Notification.Name { .init("com.gander.\(name).toggle") }
-    var notifShow:   Notification.Name { .init("com.gander.\(name).show") }
-    var notifHide:   Notification.Name { .init("com.gander.\(name).hide") }
-    var notifOpen:   Notification.Name { .init("com.gander.\(name).open") }
-    var notifFrame:  Notification.Name { .init("com.gander.\(name).frame") }
-    var notifSites:  Notification.Name { .init("com.gander.\(name).sites") }
-    var notifNext:    Notification.Name { .init("com.gander.\(name).next") }
-    var notifPrev:    Notification.Name { .init("com.gander.\(name).prev") }
-    var notifMenuBar: Notification.Name { .init("com.gander.\(name).menubar") }
+    var notifToggle: Notification.Name { .init("ur.browse.\(name).toggle") }
+    var notifShow:   Notification.Name { .init("ur.browse.\(name).show") }
+    var notifHide:   Notification.Name { .init("ur.browse.\(name).hide") }
+    var notifOpen:   Notification.Name { .init("ur.browse.\(name).open") }
+    var notifFrame:  Notification.Name { .init("ur.browse.\(name).frame") }
+    var notifSites:  Notification.Name { .init("ur.browse.\(name).sites") }
+    var notifNext:    Notification.Name { .init("ur.browse.\(name).next") }
+    var notifPrev:    Notification.Name { .init("ur.browse.\(name).prev") }
+    var notifMenuBar: Notification.Name { .init("ur.browse.\(name).menubar") }
 
     /// Preset used at launch: `frameAuto` match for current screen count, then `frame`, then legacy root fields.
     func launchPresetName(screenCount: Int) -> String {

@@ -6,11 +6,11 @@ build:
 	bash build.sh
 
 run:
-	bash build.sh && open Gander.app
+	bash build.sh && open "Ur Browse.app"
 
 install: build
-	@echo "✓ Local build: $(CURDIR)/Gander.app"
-	@echo "  Run: open Gander.app"
+	@echo "✓ Local build: $(CURDIR)/Ur Browse.app"
+	@echo "  Run: open "Ur Browse.app""
 
 logic-test:
 	bash logic-test.sh

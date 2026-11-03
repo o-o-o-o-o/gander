@@ -35,5 +35,5 @@ git push origin "${TAG}"
 
 echo ""
 echo "✓ Release ${TAG} triggered."
-echo "  Watch it at: https://github.com/o-o-o-o-o/gander/actions"
-echo "  Release will appear at: https://github.com/o-o-o-o-o/gander/releases/tag/${TAG}"
+echo "  Watch it at: https://github.com/o-o-o-o-o/ur-browse/actions"
+echo "  Release will appear at: https://github.com/o-o-o-o-o/ur-browse/releases/tag/${TAG}"

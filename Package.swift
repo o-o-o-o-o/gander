@@ -2,16 +2,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "Gander",
-    platforms: [.macOS(.v13)],
+    name: "UrBrowse",
+    platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
-            name: "GanderApp",
-            path: "Sources/Gander"
+            name: "UrBrowseApp",
+            path: "Sources/UrBrowse"
         ),
         .executableTarget(
-            name: "gander",
-            path: "Sources/gander-cli"
+            name: "ur-browse",
+            path: "Sources/ur-browse-cli"
         ),
     ]
 )

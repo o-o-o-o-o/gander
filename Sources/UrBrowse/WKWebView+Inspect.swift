@@ -2,7 +2,7 @@ import AppKit
 import WebKit
 
 extension WKWebView {
-    /// Expose this web view in Safari → Develop → [machine] → Gander (macOS 13.3+).
+    /// Expose this web view in Safari → Develop → [machine] → Ur Browse.
     func enableInspection() {
         if #available(macOS 13.3, *) {
             isInspectable = true
@@ -14,7 +14,7 @@ extension WKWebView {
 /// `willOpenMenu` is NOT called by WebKit on macOS — it uses an internal subview as the
 /// `forView:` argument to `NSMenu.popUpContextMenu`, so overriding it on WKWebView has no
 /// effect. Overriding `rightMouseDown` is the reliable alternative.
-class GanderWebView: WKWebView {
+class BrowseWebView: WKWebView {
     var onCopyURL:        (() -> Void)?
     var onOpenExternally: (() -> Void)?
 
