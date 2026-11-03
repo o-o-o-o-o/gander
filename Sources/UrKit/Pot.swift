@@ -1,6 +1,6 @@
 import Foundation
 
-/// A pot is one independent instance of an Ur app: its own config, slip scripts, website data,
+/// A pot is one independent instance of an ur app: its own config, slip scripts, website data,
 /// socket, and (optionally) LaunchAgent. One clay body (the app), many pots.
 ///
 ///   config   $UR_CONFIG_HOME/<app>/<pot>/config.json   (default ~/.config/ur)

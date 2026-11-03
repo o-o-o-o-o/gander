@@ -2,7 +2,7 @@ import AppKit
 import WebKit
 
 extension WKWebView {
-    /// Expose this web view in Safari → Develop → [machine] → Ur Browse.
+    /// Expose this web view in Safari → Develop → [machine] → urBrowse.
     func enableInspection() {
         if #available(macOS 13.3, *) {
             isInspectable = true

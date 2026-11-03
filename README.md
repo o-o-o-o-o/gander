@@ -1,7 +1,7 @@
-# 🪿 Ur Browse
+# 🪿 urBrowse
 
 *Gander* as in "to take a gander" — a glimpse, a glance, a peek. *Gander* as in a goose.
-The goose and the nickname stay; the app is now **Ur Browse**, the first app of the **Ur** suite
+The goose and the nickname stay; the app is now **urBrowse**, the first app of the **ur** suite
 (ur-mail and ur-notes will follow).
 
 A floatable, hot key-able, native sidebar browser (NSPanel + WKWebView) that persists across all
@@ -28,16 +28,16 @@ brew update && brew upgrade --cask ur-browse   # pull a new release
 
 The repo is being renamed `o-o-o-o-o/gander` → `o-o-o-o-o/ur-browse`; GitHub redirects the old
 URLs, so old taps and links keep working. Or download `UrBrowse-vX.Y.Z.zip` from
-[GitHub Releases](https://github.com/o-o-o-o-o/ur-browse/releases) and drag `Ur Browse.app` to
+[GitHub Releases](https://github.com/o-o-o-o-o/ur-browse/releases) and drag `urBrowse.app` to
 `/Applications`. Maintainer release steps: [RELEASE.md](RELEASE.md).
 
 The Cask installs two CLI names pointing at the same binary: `ur-browse` and the legacy `gander`.
 
-Ur Browse is not signed with an Apple Developer certificate. The Cask strips the quarantine flag; if
+urBrowse is not signed with an Apple Developer certificate. The Cask strips the quarantine flag; if
 macOS still blocks it:
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/Ur Browse.app"
+xattr -dr com.apple.quarantine "/Applications/urBrowse.app"
 # or: System Settings → Privacy & Security → Open Anyway
 ```
 
@@ -45,12 +45,12 @@ xattr -dr com.apple.quarantine "/Applications/Ur Browse.app"
 
 ## Lexicon
 
-The Ur suite uses a ceramics vocabulary. The same words are used in the code, the CLI and these docs.
+The ur suite uses a ceramics vocabulary. The same words are used in the code, the CLI and these docs.
 
 | Word | Meaning |
 | ---- | ------- |
-| **Ur** | The suite. Addresses look like `<app>://<pot>/<kind>/<id>`. |
-| **clay** | The app template / source: the shared skeleton (UrKit + UrAppSpec) every Ur app is made from. |
+| **ur** | The suite. Addresses look like `<app>://<pot>/<kind>/<id>`. |
+| **clay** | The app template / source: the shared skeleton (UrKit + UrAppSpec) every ur app is made from. |
 | **pot** | An instance of an app: its own config, slip scripts, website data (cookies, logins), socket and optional LaunchAgent. Replaces the word "instance". |
 | **throw** | Create a pot: `ur-browse throw work --glaze '#2ECC71' --login`. |
 | **glaze** | A pot's look: config key `glaze`, a hex color (progress bar + menu bar tint). |
@@ -424,9 +424,9 @@ open -g "ur-browse://work/open?url=https://github.com&width=500"
 
 ```bash
 cd path/to/ur-browse
-bash publish.sh        # build, logic-test, smoke-test → "./Ur Browse.app"
+bash publish.sh        # build, logic-test, smoke-test → "./urBrowse.app"
 make publish           # same workflow, shorter entry point
-open "Ur Browse.app"
+open "urBrowse.app"
 ```
 
 Run a named pot from a dev build:

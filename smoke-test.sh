@@ -172,7 +172,7 @@ fi
 cmd "original pot still answers" "${INSTANCE_NAME}" hide
 
 echo "==> Checking bundle assets"
-if [[ ! -f "Ur Browse.app/Contents/Resources/greg.png" ]]; then
+if [[ ! -f "urBrowse.app/Contents/Resources/greg.png" ]]; then
     echo "  ✗ expected processed menubar icon inside app bundle" >&2
     FAILED=1
 else
