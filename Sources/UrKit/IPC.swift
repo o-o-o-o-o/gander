@@ -169,6 +169,8 @@ public final class IPCServer {
         }
         listenFD = fd
 
+        signal(SIGPIPE, SIG_IGN)  // a client that hangs up must not kill the pot
+
         let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
         source.setEventHandler { [weak self] in self?.acceptOne() }
         source.resume()

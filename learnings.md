@@ -1231,3 +1231,11 @@ making users edit the app.
 - `ur-browse <pot> slip` reloads (no restart); `slip --list` shows what is loaded. `info --json`
   lists the slip files too.
 
+
+## Pot dies with SIGPIPE on the first IPC request (TASK-6)
+
+The pot exited with status 141 when the CLI sent its first request; the CLI printed
+`no reply from …sock`, and the app left no log and no crash report. `SO_NOSIGPIPE` is set on the
+accepted fd, but a write to a closed pipe elsewhere still raised SIGPIPE and the default action
+killed the process. Fix: `signal(SIGPIPE, SIG_IGN)` in `IPCServer.start` (UrKit), so every Ur app
+gets it. Diagnose by running the binary in the foreground and reading `$?`: 141 = 128 + SIGPIPE.
