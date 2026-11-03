@@ -1,4 +1,4 @@
-# Gander Build Workflow
+# Ur Browse Build Workflow
 
 Use this whenever you change app code, assets, or packaging.
 
@@ -14,9 +14,9 @@ What it does:
 1. Runs `swift build` for a fast compile check.
 2. Runs `bash logic-test.sh` for source-level logic checks that work with Command Line Tools.
 3. Runs `bash build.sh` to produce the release app bundle.
-4. Runs `bash smoke-test.sh` against an isolated temporary instance and checks the installed app's `gander://show`, `gander://toggle`, and `gander://hide` handlers.
-5. Registers the `gander://` URL scheme.
-6. Builds `./Gander.app` in the repo root (does not touch `/Applications`).
+4. Runs `bash smoke-test.sh` against an isolated temporary pot (temp config, temp socket, ephemeral website data) through the `ur-browse` CLI, and checks the installed app's `ur-browse://show`, `ur-browse://toggle`, and `ur-browse://hide` handlers.
+5. Registers the `ur-browse://` (and legacy `gander://`) URL schemes.
+6. Builds `./Ur Browse.app` in the repo root (does not touch `/Applications`).
 
 Optional flags:
 
@@ -34,7 +34,7 @@ swift build
 bash logic-test.sh
 bash build.sh
 bash smoke-test.sh
-open Gander.app
+open "Ur Browse.app"
 ```
 
 Or via `make`:
@@ -46,24 +46,24 @@ make publish-open
 
 ## What `build.sh` publishes
 
-- Builds `GanderApp` in release mode.
-- Regenerates the app icon.
-- Processes `Resources/greg.png` into the bundled menubar template image.
-- Refreshes `Gander.app` in the repo.
-- Writes `Gander.app` in the repo root.
+- Builds `UrBrowseApp` and `ur-browse` (the CLI) in release mode.
+- Hands the binaries to `scripts/bundle.sh`, which (shared with the CI release build) regenerates the
+  app icon, processes `Resources/greg.png` into the bundled menubar template image, and writes
+  `Ur Browse.app` in the repo root.
 
-The `gander` CLI is **not** installed to `/usr/local/bin` by `build.sh`. In local dev use
-`.build/release/gander` directly. For users, the CLI reaches PATH via the Homebrew Cask's
-`binary` stanza (`gander-cli` inside the bundle, symlinked as `gander`).
+The CLI is **not** installed to `/usr/local/bin` by `build.sh`. In local dev use
+`.build/release/ur-browse` directly. For users, the CLI reaches PATH via the Homebrew Cask's
+`binary` stanzas (`ur-browse-cli` inside the bundle, symlinked as `ur-browse` and as the legacy
+`gander`).
 
 ## Verification checklist
 
 1. Confirm the build completes without compiler errors.
 2. Confirm smoke tests pass.
-3. Launch `Gander.app` from the repo root.
+3. Launch `Ur Browse.app` from the repo root.
 4. Confirm the menubar icon size looks correct.
-5. Confirm the installed app still responds to `gander://show`, `gander://toggle`, and `gander://hide`.
-6. If you changed config, window frame, or site routing, test one configured URL and one ad hoc URL.
+5. Confirm the installed app still responds to `ur-browse://show`, `ur-browse://toggle`, and `ur-browse://hide` (and that `ur-browse pots` lists your pots).
+6. If you changed config, window frame, or site routing, test one configured site (`ur-browse site <id>`) and one ad hoc URL.
 
 ## Publishing rule of thumb
 

@@ -91,10 +91,22 @@ enum HelpContent {
         <body>
 
         <div class="header">
-        <img src="greg.png" alt="Gander" onerror="this.style.display='none'">
-        <h1>Gander</h1>
-        <p class="dim">Version \#(version)</p>
+        <img src="greg.png" alt="Ur Browse" onerror="this.style.display='none'">
+        <h1>Ur Browse</h1>
+        <p class="dim">Version \#(version) &middot; pot <code>\#(name)</code></p>
+        <p class="dim">Gander, the goose. First app of the Ur suite.</p>
         </div>
+
+        <h2>Lexicon</h2>
+        <table>
+        <tr><td>Ur</td><td>The suite. Addresses look like <code>&lt;app&gt;://&lt;pot&gt;/&lt;kind&gt;/&lt;id&gt;</code></td></tr>
+        <tr><td>clay</td><td>The app template (shared skeleton every Ur app is made from)</td></tr>
+        <tr><td>pot</td><td>An instance: own config, slip, logins, socket, optional LaunchAgent</td></tr>
+        <tr><td>throw</td><td>Create a pot</td></tr>
+        <tr><td>glaze</td><td>A pot's look (hex color)</td></tr>
+        <tr><td>slip</td><td>User scripts and styles in the pot's <code>slip/</code> folder</td></tr>
+        <tr><td>kiln</td><td>Build, test and promote</td></tr>
+        </table>
 
         <h2>Keyboard Shortcuts</h2>
         <table>
@@ -115,31 +127,72 @@ enum HelpContent {
         <tr><td>(type)</td><td>Filter by name or URL — typing a bare URL opens it directly</td></tr>
         </table>
 
+        <h2>Pots</h2>
+        <p>Each pot has its own folder <code>~/.config/ur/browse/&lt;pot&gt;/</code> (<code>config.json</code>
+        and <code>slip/</code>), its own logins and cookies, and its own socket. Hotkeys are local to the
+        pot whose panel is key.</p>
+        <pre>ur-browse pots [--json]
+        ur-browse throw work --glaze '#2ECC71' --login
+        ur-browse throw play --from work --no-start
+        ur-browse work start
+        ur-browse work quit</pre>
+        <p class="dim"><code>--login</code> starts the pot at login via a LaunchAgent. <code>open</code>,
+        <code>site</code>, <code>show</code>, <code>toggle</code> and <code>picker</code> start a stopped pot
+        automatically; other commands exit 2 when the pot is not running.</p>
+
         <h2>CLI</h2>
-        <pre>gander \#(name) toggle
-        gander \#(name) show / hide
-        gander \#(name) sites                  open site picker
-        gander \#(name) next / prev
-        gander \#(name) open &lt;url&gt;
-        gander \#(name) open &lt;url&gt; --shortcut &lt;1–9&gt;
-        gander \#(name) frame &lt;preset&gt; [--x v --y v --width v --height v]
-        gander menubar                         restore hidden menu bar icon</pre>
+        <p class="dim">Command <code>ur-browse</code> (legacy alias <code>gander</code>). Omit the pot for <code>default</code>.</p>
+        <pre>ur-browse \#(name) toggle | show | hide
+        ur-browse \#(name) picker              toggle the site picker
+        ur-browse \#(name) next | prev
+        ur-browse \#(name) open &lt;url&gt; [--shortcut &lt;1–9&gt;]
+        ur-browse \#(name) site &lt;id&gt;[/path]
+        ur-browse \#(name) sites --json | --alfred | --list
+        ur-browse \#(name) current [--json]
+        ur-browse \#(name) frame &lt;preset&gt; [--x v --y v --width v --height v]
+        ur-browse \#(name) slip [--list]
+        ur-browse \#(name) info --json
+        ur-browse \#(name) menubar             restore hidden menu bar icon</pre>
         <p class="dim" style="margin-top:4px">Examples</p>
-        <pre>gander \#(name) frame laptop
-        gander \#(name) frame --width 30% --height 100%
-        gander \#(name) open https://example.com --shortcut 3</pre>
+        <pre>ur-browse \#(name) frame laptop
+        ur-browse \#(name) frame --width 30% --height 100%
+        ur-browse \#(name) open https://example.com --shortcut 3</pre>
+
+        <h2>Sites &amp; Addresses</h2>
+        <p>Every site has an id: the <code>"id"</code> in its config entry, otherwise a slug of its name
+        (<code>Hacker News</code> → <code>hacker-news</code>). Use it from anywhere:</p>
+        <pre>ur-browse \#(name) site gh
+        ur-browse \#(name) site gh/o-o-o-o-o/ur-browse    deep link
+        open -g "ur-browse://\#(name)/site/gh"
+        ur-browse \#(name) sites --alfred                  Alfred Script Filter</pre>
+        <p class="dim">URLs for another pot are forwarded to it. <code>--json</code> output includes each
+        site's <code>address</code>, e.g. <code>ur-browse://\#(name)/site/gh</code>.</p>
 
         <h2>URL Scheme</h2>
-        <pre>gander://\#(name)/toggle
-        gander://\#(name)/show
-        gander://\#(name)/show?x=&lt;n&gt;&amp;y=&lt;n&gt;&amp;width=&lt;n&gt;&amp;height=&lt;n&gt;
-        gander://\#(name)/hide
-        gander://\#(name)/sites
-        gander://\#(name)/open?url=&lt;encoded-url&gt;
-        gander://\#(name)/open?url=&lt;encoded-url&gt;&amp;shortcut=&lt;1–9&gt;
-        gander://\#(name)/frame?x=&lt;n&gt;&amp;y=&lt;n&gt;&amp;width=&lt;n&gt;&amp;height=&lt;n&gt;</pre>
-        <p class="dim">Shell: <code>open -g "gander://\#(name)/toggle"</code></p>
-        <p class="dim">AppleScript: <code>open location "gander://\#(name)/toggle"</code></p>
+        <pre>ur-browse://\#(name)/toggle
+        ur-browse://\#(name)/show?x=&lt;n&gt;&amp;y=&lt;n&gt;&amp;width=&lt;n&gt;&amp;height=&lt;n&gt;
+        ur-browse://\#(name)/hide
+        ur-browse://\#(name)/picker
+        ur-browse://\#(name)/site/&lt;id&gt;[/path]
+        ur-browse://\#(name)/open?url=&lt;encoded-url&gt;
+        ur-browse://\#(name)/open?url=&lt;encoded-url&gt;&amp;shortcut=&lt;1–9&gt;
+        ur-browse://\#(name)/frame?x=&lt;n&gt;&amp;y=&lt;n&gt;&amp;width=&lt;n&gt;&amp;height=&lt;n&gt;</pre>
+        <p class="dim">Shell: <code>open -g "ur-browse://\#(name)/toggle"</code></p>
+        <p class="dim">AppleScript: <code>open location "ur-browse://\#(name)/toggle"</code></p>
+        <p class="dim">The legacy <code>gander://</code> scheme still works.</p>
+
+        <h2>Slip (user scripts)</h2>
+        <p>Every <code>*.js</code> and <code>*.css</code> file in
+        <code>~/.config/ur/browse/\#(name)/slip/</code> is injected into the pot's pages, in file-name order.
+        Reload with <code>ur-browse \#(name) slip</code>.</p>
+        <pre>// ==UserScript==
+        // @name     Quiet GitHub
+        // @match    https://github.com/*
+        // @exclude  https://github.com/settings/*
+        // @run-at   document-start     (JS default: document-end)
+        // @all-frames                  (default: main frame only)
+        // ==/UserScript==</pre>
+        <p class="dim">No <code>@match</code> means every page. <code>GM_*</code> APIs are not provided.</p>
 
         <h2>Pinned Shortcuts (⌘1–⌘9)</h2>
         <p>Set <code>"pinned"</code> in your config:</p>
@@ -148,13 +201,13 @@ enum HelpContent {
         <tr><td>"manual"</td><td>Assign per site with a <code>"shortcut"</code> field (1–9)</td></tr>
         </table>
         <p class="dim" style="margin-top:8px">Transient — overrides config for that slot until restart:</p>
-        <pre>gander \#(name) open https://example.com --shortcut 7
-        open -g "gander://\#(name)/open?url=https%3A%2F%2Fexample.com&amp;shortcut=7"</pre>
+        <pre>ur-browse \#(name) open https://example.com --shortcut 7
+        open -g "ur-browse://\#(name)/open?url=https%3A%2F%2Fexample.com&amp;shortcut=7"</pre>
 
-        <h2>Config &nbsp;<span class="dim">~/.config/gander/\#(name).json</span></h2>
+        <h2>Config &nbsp;<span class="dim">~/.config/ur/browse/\#(name)/config.json</span></h2>
         <pre>{
           "name":            "\#(name)",
-          "color":           "#4A90D9",    // accent stripe colour
+          "glaze":           "#4A90D9",    // progress bar + menu bar tint ("color" still works)
           "width":           420,
           "height":          900,
           "x":               20,           // initial window position
@@ -170,14 +223,15 @@ enum HelpContent {
             "prev":   "cmd+shift+["
           },
           "sites": [
-            { "name": "Example", "url": "https://example.com" },
+            { "id": "ex", "name": "Example", "url": "https://example.com" },
             { "name": "Search",  "url": "https://google.com/search?q=" },
             { "name": "Pinned",  "url": "https://github.com", "shortcut": 2 }
           ]
         }</pre>
         <p class="dim">Search sites: the typed query is appended to the URL.</p>
-        <p class="dim" style="margin-top:4px">Multiple instances: give each a unique name + config, launch with
-        <code>GanderApp --config ~/.config/gander/&lt;name&gt;.json</code></p>
+        <p class="dim" style="margin-top:4px">Upgrading from Gander: configs in
+        <code>~/.config/gander/&lt;name&gt;.json</code> are copied into the pot folder on first start. Each pot now
+        has its own website data, so you log in to your sites once again.</p>
 
         </body>
         </html>
