@@ -1,56 +1,50 @@
 import AppKit
 import ServiceManagement
+import UrBrowseSpec
+import UrKit
 import WebKit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     let config: AppConfig
+    let pot: Pot
     var panel: SidebarPanel?
     var statusItem: NSStatusItem?
+    private var ipc: IPCServer?
 
     private var lastScreenCount: Int = 0
     private var layoutDebounce: DispatchWorkItem?
 
-    init(config: AppConfig) {
+    init(config: AppConfig, pot: Pot) {
         self.config = config
-    }
-
-    // IPC notifications and URL scheme both map to FrameConfig (preset name and/or dimension strings).
-    private func frameConfig(from userInfo: [AnyHashable: Any]?) -> FrameConfig {
-        func readString(_ key: String) -> String? {
-            guard let raw = userInfo?[key] else { return nil }
-            if let text = raw as? String { return text }
-            if let number = raw as? NSNumber { return String(number.doubleValue) }
-            return nil
-        }
-
-        return FrameConfig(preset: userInfo?["preset"] as? String,
-                           x: readString("x"),
-                           y: readString("y"),
-                           width: readString("width"),
-                           height: readString("height"))
-    }
-
-    private func frameConfig(from components: URLComponents?) -> FrameConfig {
-        func read(_ key: String) -> String? {
-            components?.queryItems?.first(where: { $0.name == key }).flatMap { $0.value }
-        }
-
-        return FrameConfig(preset: read("preset"),
-                           x: read("x"),
-                           y: read("y"),
-                           width: read("width"),
-                           height: read("height"))
+        self.pot = pot
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Claim the pot's socket first: if this pot is already running, step aside instead of
+        // opening a second panel (the old "two default instances" LaunchAgent problem).
+        let server = IPCServer(socketURL: pot.socketURL) { [weak self] request, reply in
+            guard let self else { reply(.failure("shutting down")); return }
+            self.handle(request, reply: reply)
+        }
+        do {
+            try server.start()
+        } catch {
+            fputs("Ur Browse: \(error) — not starting a second copy of pot '\(pot.name)'\n", stderr)
+            exit(0)
+        }
+        ipc = server
+
         setupEditMenu()
-        panel = SidebarPanel(config: config)
+        panel = SidebarPanel(config: config, pot: pot)
         if !UserDefaults.standard.bool(forKey: "hideMenuBarIcon.\(config.name)") {
             setupMenuBar()
         }
-        setupIPC()
         setupURLScheme()
         setupFrameAuto()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        ipc?.stop()
     }
 
     private func setupFrameAuto() {
@@ -122,6 +116,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(item("\(title)  ⌘⇧\\", #selector(togglePanel)))
         menu.addItem(item("Sites…  ⌘⇧/",    #selector(openSitePicker)))
         menu.addItem(.separator())
+        menu.addItem(item("Reload Slip Scripts", #selector(reloadSlipFromMenu)))
+        menu.addItem(item("Show Pot Folder",     #selector(showPotFolder)))
+        menu.addItem(.separator())
         menu.addItem(item("Open at Login",        #selector(toggleLaunchAtLogin),      tag: 101))
         menu.addItem(item("Hide Menu Bar Icon…",  #selector(confirmHideMenuBarIcon)))
         menu.addItem(.separator())
@@ -133,6 +130,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func togglePanel()    { panel?.toggle() }
     @objc func openSitePicker() { panel?.toggleSitePicker() }
+    @objc private func reloadSlipFromMenu() { panel?.reloadSlip() }
+
+    @objc private func showPotFolder() {
+        try? FileManager.default.createDirectory(at: pot.slipDirectory, withIntermediateDirectories: true)
+        NSWorkspace.shared.activateFileViewerSelecting([pot.slipDirectory])
+    }
 
     @objc private func toggleLaunchAtLogin() {
         let service = SMAppService.mainApp
@@ -240,58 +243,104 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return img
     }
 
-    // MARK: IPC — NSDistributedNotificationCenter
+    // MARK: Commands — one dispatcher for every surface
     //
-    // Notification names are scoped to the instance name so multiple instances coexist.
-    // CLI:         gander [name] toggle / show / hide / open <url> / sites
-    // AppleScript: do shell script "gander work open https://example.com"
+    // CLI (`ur-browse work open …`) and other pots arrive over the pot's Unix socket;
+    // `ur-browse://` / `gander://` URLs arrive as Apple Events. Both become a UrKit `Request`,
+    // then a typed `BrowseCommand`, then run here.
 
-    private func setupIPC() {
-        let nc = DistributedNotificationCenter.default()
-        nc.addObserver(self, selector: #selector(ipcToggle),    name: config.notifToggle,   object: nil)
-        nc.addObserver(self, selector: #selector(ipcShow(_:)),  name: config.notifShow,     object: nil)
-        nc.addObserver(self, selector: #selector(ipcHide),      name: config.notifHide,     object: nil)
-        nc.addObserver(self, selector: #selector(ipcOpen(_:)),  name: config.notifOpen,     object: nil)
-        nc.addObserver(self, selector: #selector(ipcFrame(_:)), name: config.notifFrame,    object: nil)
-        nc.addObserver(self, selector: #selector(ipcSites),     name: config.notifSites,    object: nil)
-        nc.addObserver(self, selector: #selector(ipcNext),      name: config.notifNext,     object: nil)
-        nc.addObserver(self, selector: #selector(ipcPrev),      name: config.notifPrev,     object: nil)
-        nc.addObserver(self, selector: #selector(ipcMenuBar),   name: config.notifMenuBar,  object: nil)
-    }
-
-    @objc private func ipcToggle()                { panel?.toggle() }
-    @objc private func ipcShow(_ n: Notification) {
-        panel?.applyFrame(frameConfig(from: n.userInfo))
-        panel?.show()
-    }
-    @objc private func ipcHide()                  { panel?.hide() }
-    @objc private func ipcSites()                 { panel?.toggleSitePicker() }
-    @objc private func ipcNext()                  { panel?.nextSite() }
-    @objc private func ipcPrev()                  { panel?.prevSite() }
-    @objc private func ipcOpen(_ n: Notification) {
-        guard let url = n.userInfo?["url"] as? String else { return }
-        if let raw = n.userInfo?["shortcut"] {
-            let n = (raw as? Int) ?? (raw as? NSNumber).map { $0.intValue } ?? Int(String(describing: raw))
-            if let n, (1...9).contains(n) { panel?.setTransientShortcut(n, url: url) }
+    private func handle(_ request: Request, reply: @escaping (Response) -> Void) {
+        do {
+            reply(execute(try BrowseCommand(request), request: request))
+        } catch {
+            reply(.failure("\(error)"))
         }
-        panel?.applyFrame(frameConfig(from: n.userInfo))
-        panel?.show()
-        panel?.load(url)
     }
-    @objc private func ipcFrame(_ n: Notification) {
-        panel?.applyFrame(frameConfig(from: n.userInfo))
-    }
-    @objc private func ipcMenuBar() { restoreMenuBarIcon() }
 
-    // MARK: URL scheme  gander://
+    private func execute(_ command: BrowseCommand, request: Request) -> Response {
+        guard let panel else { return .failure("pot '\(pot.name)' is still starting") }
+        switch command {
+        case .toggle:
+            panel.toggle()
+        case .show(let frame):
+            panel.applyFrame(frame)
+            panel.show()
+        case .hide:
+            panel.hide()
+        case .picker:
+            panel.toggleSitePicker()
+        case .next:
+            panel.nextSite()
+        case .prev:
+            panel.prevSite()
+        case .open(let url, let shortcut, let frame):
+            if let shortcut { panel.setTransientShortcut(shortcut, url: url) }
+            panel.applyFrame(frame)
+            panel.show()
+            panel.load(url)
+        case .site(let id, let path, let frame):
+            do {
+                let site = try panel.openSite(id: id, path: path)
+                panel.applyFrame(frame)
+                panel.show()
+                return .success(panel.currentInfo(), text: "\(site.name)")
+            } catch {
+                return .failure("\(error)")
+            }
+        case .listSites:
+            let sites = panel.siteListing()
+            let width = sites.map(\.id.count).max() ?? 0
+            let text = sites.map { s in
+                let marker = s.active ? "▸" : (s.open ? "•" : " ")
+                let key = s.shortcut.map { " ⌘\($0)" } ?? ""
+                let temp = s.temporary ? " (temporary)" : ""
+                return "\(marker) \(s.id.padding(toLength: width, withPad: " ", startingAt: 0))  \(s.name)  \(s.url)\(key)\(temp)"
+            }.joined(separator: "\n")
+            return .success(sites, text: text)
+        case .current:
+            let info = panel.currentInfo()
+            return .success(info, text: [info.title, info.url].compactMap { $0 }.joined(separator: "\n"))
+        case .frame(let frame):
+            panel.applyFrame(frame)
+        case .menubar:
+            restoreMenuBarIcon()
+        case .reloadSlip:
+            panel.reloadSlip()
+            let names = panel.slipScripts.map(\.file)
+            return .success(names, text: names.isEmpty
+                ? "no slip scripts in \(pot.slipDirectory.path)"
+                : "reloaded \(names.count) slip script(s): \(names.joined(separator: ", "))")
+        case .listSlip:
+            let infos = panel.slipScripts.map(\.info)
+            let text = infos.isEmpty
+                ? "no slip scripts in \(pot.slipDirectory.path)"
+                : infos.map { "\($0.file)  \($0.matches.isEmpty ? "all pages" : $0.matches.joined(separator: " "))" }
+                    .joined(separator: "\n")
+            return .success(infos, text: text)
+        case .info:
+            let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+            let info = PotInfo(pot: pot.name, app: BrowseSpec.spec.app, version: version, glaze: config.glaze,
+                               visible: panel.isVisible, sites: panel.siteListing().count,
+                               slip: panel.slipScripts.map(\.file), config: pot.configURL.path)
+            return .success(info)
+        case .quit:
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { NSApp.terminate(nil) }
+        }
+        return .success()
+    }
+
+    // MARK: URL scheme  ur-browse://  (and legacy gander://)
     //
-    //   gander://toggle  /  gander://work/toggle
-    //   gander://open?url=https%3A%2F%2Fexample.com&width=480&height=900
-    //   gander://frame?x=100&y=80&width=420&height=1000
-    //   gander://sites
+    //   ur-browse://toggle                 ur-browse://work/toggle
+    //   ur-browse://work/site/gh/o-o-o-o-o/ur-browse
+    //   ur-browse://open?url=https%3A%2F%2Fexample.com&width=480&height=900
+    //   ur-browse://frame?x=100&y=80&width=420&height=1000
     //
-    // Shell:       open -g "gander://toggle"
-    // AppleScript: open location "gander://toggle"
+    // Shell:       open -g "ur-browse://work/site/gh"
+    // AppleScript: open location "ur-browse://toggle"
+    //
+    // All pots share one bundle, so LaunchServices hands a URL to whichever process it picks.
+    // A URL for another pot is forwarded to that pot's socket rather than dropped.
 
     private func setupURLScheme() {
         NSAppleEventManager.shared().setEventHandler(
@@ -302,37 +351,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func handleURL(_ event: NSAppleEventDescriptor, withReplyEvent: NSAppleEventDescriptor) {
-        guard let raw   = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue,
-              let url   = URL(string: raw),
-              ["ur-browse", "gander"].contains(url.scheme ?? "") else { return }
-
-        let parts  = url.pathComponents.filter { $0 != "/" }
-        let target = parts.count > 1 ? parts[0] : (url.host ?? "default")
-        let action = parts.count > 1 ? parts[1] : (parts.first ?? url.host ?? "toggle")
-
-        guard target == config.name || (target == "default" && config.name == "default") else { return }
-
-        switch action {
-        case "toggle": panel?.toggle()
-        case "show":
-            panel?.applyFrame(frameConfig(from: URLComponents(url: url, resolvingAgainstBaseURL: false)))
-            panel?.show()
-        case "hide":   panel?.hide()
-        case "sites":  panel?.toggleSitePicker()
-        case "open":
-            let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
-            if let dest = comps?.queryItems?.first(where: { $0.name == "url" })?.value {
-                if let sStr = comps?.queryItems?.first(where: { $0.name == "shortcut" })?.value,
-                   let n = Int(sStr), (1...9).contains(n) {
-                    panel?.setTransientShortcut(n, url: dest)
-                }
-                panel?.applyFrame(frameConfig(from: comps))
-                panel?.show()
-                panel?.load(dest)
+        let spec = BrowseSpec.spec
+        guard let raw = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue,
+              let url = URL(string: raw),
+              let request = RequestParser.parse(url: url, schemes: spec.schemes, verbs: spec.verbs,
+                                                defaultVerb: spec.defaultVerb) else { return }
+        if request.pot == pot.name {
+            handle(request) { response in
+                if !response.ok { fputs("Ur Browse: \(raw): \(response.error ?? "failed")\n", stderr) }
             }
-        case "frame":
-            panel?.applyFrame(frameConfig(from: URLComponents(url: url, resolvingAgainstBaseURL: false)))
-        default: break
+            return
+        }
+        let target = spec.pot(request.pot)
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let response = try IPCClient.send(request, to: target.socketURL)
+                if !response.ok { fputs("Ur Browse: \(raw): \(response.error ?? "failed")\n", stderr) }
+            } catch {
+                fputs("Ur Browse: pot '\(target.name)' is not running (\(raw))\n", stderr)
+            }
         }
     }
 }

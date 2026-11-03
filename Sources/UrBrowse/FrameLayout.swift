@@ -159,7 +159,7 @@ struct FrameAutoConfig: Codable, Equatable {
 
 // MARK: - IPC / CLI partial frame
 
-struct FrameConfig {
+struct FrameConfig: Equatable {
     var preset: String?
     var x: String?
     var y: String?
