@@ -9,30 +9,30 @@ How to **ship** a new version (maintainers) and how to **pull** the latest build
 ### Homebrew (recommended)
 
 ```bash
-brew tap o-o-o-o-o/gander
-brew install --cask gander
+brew tap o-o-o-o-o/ur-browse
+brew install --cask ur-browse
 ```
 
 Upgrade when a new version is out:
 
 ```bash
-brew update && brew upgrade --cask gander
+brew update && brew upgrade --cask ur-browse
 ```
 
-The Cask (`Casks/gander.rb`) is updated automatically at the end of each release CI run.
+The Cask (`Casks/ur-browse.rb`) is updated automatically at the end of each release CI run. It installs the `ur-browse` CLI and the legacy `gander` alias. The repo was renamed from `o-o-o-o-o/gander`; GitHub redirects the old URLs, and `cask_renames.json` maps the old `gander` cask name.
 
 ### Manual download
 
-1. Open [GitHub Releases](https://github.com/o-o-o-o-o/gander/releases).
-2. Download `Gander-vX.Y.Z.zip` for the version you want.
-3. Unzip and drag `Gander.app` to `/Applications` (replace the old copy).
+1. Open [GitHub Releases](https://github.com/o-o-o-o-o/ur-browse/releases).
+2. Download `UrBrowse-vX.Y.Z.zip` for the version you want.
+3. Unzip and drag `Ur Browse.app` to `/Applications` (replace the old copy).
 
 ### Gatekeeper (unsigned app)
 
-Gander is not notarized. After install or upgrade, macOS may block the first launch. Use **System Settings → Privacy & Security → Open Anyway**, or remove quarantine:
+Ur Browse is not notarized. After install or upgrade, macOS may block the first launch. Use **System Settings → Privacy & Security → Open Anyway**, or remove quarantine:
 
 ```bash
-xattr -cr /Applications/Gander.app
+xattr -cr "/Applications/Ur Browse.app"
 ```
 
 ---
@@ -56,7 +56,7 @@ xattr -cr /Applications/Gander.app
    bash publish.sh
    ```
 
-   Smoke-test the change with `open Gander.app` (repo root build) before tagging.
+   Smoke-test the change with `open "Ur Browse.app"` (repo root build) before tagging.
 
 4. **Pick a version** (semver pre-1.0: `0.x.y`):
 
@@ -89,7 +89,7 @@ The script:
 Always confirm both workflows succeed before calling the release done:
 
 ```bash
-gh run list --repo o-o-o-o-o/gander --limit 3
+gh run list --repo o-o-o-o-o/ur-browse --limit 3
 ```
 
 Expect:
@@ -99,9 +99,9 @@ Expect:
 
 The Release workflow:
 
-1. Builds `Gander-v0.2.0.zip` on `macos-latest`
-2. Creates a [GitHub Release](https://github.com/o-o-o-o-o/gander/releases) with auto-generated notes
-3. Updates `Casks/gander.rb` (version + SHA256) and **pushes a new commit to `main`**
+1. Builds `UrBrowse-v0.2.0.zip` on `macos-latest`
+2. Creates a [GitHub Release](https://github.com/o-o-o-o-o/ur-browse/releases) with auto-generated notes
+3. Updates `Casks/ur-browse.rb` (version + SHA256) and **pushes a new commit to `main`**
 
 That Cask commit is made by CI on GitHub — your local `main` is now behind. **Pull it:**
 
@@ -109,9 +109,9 @@ That Cask commit is made by CI on GitHub — your local `main` is now behind. **
 git pull origin main
 ```
 
-You should see `Casks/gander.rb` updated to the version you just shipped. Skip this and the next local commit may conflict or re-do the Cask update.
+You should see `Casks/ur-browse.rb` updated to the version you just shipped. Skip this and the next local commit may conflict or re-do the Cask update.
 
-Release page: `https://github.com/o-o-o-o-o/gander/releases/tag/v0.2.0`
+Release page: `https://github.com/o-o-o-o-o/ur-browse/releases/tag/v0.2.0`
 
 ### If the Cask update fails
 
@@ -123,7 +123,7 @@ To fix a published release whose Cask did not update:
 gh workflow run update-cask.yml --field version=v0.2.0
 ```
 
-Or edit `Casks/gander.rb` manually: set `version` and `sha256` from the release zip, commit, push.
+Or edit `Casks/ur-browse.rb` manually: set `version` and `sha256` from the release zip, commit, push.
 
 ---
 
@@ -134,8 +134,8 @@ Or edit `Casks/gander.rb` manually: set `version` and `sha256` from the release 
 | Local dev install | `bash publish.sh` |
 | See latest tag | `git tag --sort=-v:refname \| head -1` |
 | Cut release | `bash scripts/release.sh X.Y.Z` |
-| Check CI | `gh run list --repo o-o-o-o-o/gander --limit 3` |
+| Check CI | `gh run list --repo o-o-o-o-o/ur-browse --limit 3` |
 | Sync Cask commit from CI | `git pull origin main` |
-| User upgrade (Homebrew) | `brew update && brew upgrade --cask gander` |
+| User upgrade (Homebrew) | `brew update && brew upgrade --cask ur-browse` |
 
 See also [CONTRIBUTING.md](CONTRIBUTING.md) (project layout), [BUILD_WORKFLOW.md](BUILD_WORKFLOW.md) (local build checklist), and [learnings.md](learnings.md) (release gotchas).

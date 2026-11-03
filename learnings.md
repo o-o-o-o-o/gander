@@ -1,7 +1,10 @@
-# Gander — Project Learnings
+# Ur Browse (Gander) — Project Learnings
 
-Everything discovered while building and iterating on Gander. Organized for fast re-onboarding
-and to avoid repeating the same mistakes.
+Everything discovered while building and iterating on Ur Browse, formerly Gander. Organized for
+fast re-onboarding and to avoid repeating the same mistakes. Sections written before the rename
+(2026-11-03) still say "Gander", "instance", `gander://` and `DistributedNotificationCenter`;
+read those as history. Where the design changed, the old section is marked *superseded* and a
+newer section follows.
 
 *Note: this is a first Swift/macOS native app. The "AppKit Fundamentals" section below captures
 patterns that experienced AppKit developers take for granted but that are non-obvious when
@@ -9,32 +12,53 @@ coming from other platforms.*
 
 ---
 
-## What Gander Is
+## What Ur Browse Is
 
-A floating sidebar browser for macOS — an `NSPanel` containing a `WKWebView` that stays visible
-across all Mission Control spaces and Aerospace window-manager spaces. Controlled by global hotkeys,
-a CLI tool (`gander toggle`), and a `gander://` URL scheme. All three control paths route through
-`NSDistributedNotificationCenter` so the CLI is just a thin messenger that posts one notification
-and exits.
+A floating sidebar browser for macOS 14+ — an `NSPanel` containing a `WKWebView` that stays
+visible across all Mission Control spaces and Aerospace window-manager spaces. It is the first app
+of the **Ur** suite (ur-mail and ur-notes will follow), nicknamed Gander (the goose icon stays).
+App `Ur Browse.app`, CLI `ur-browse` (legacy alias `gander`), URL schemes `ur-browse://` and legacy
+`gander://`, bundle id `io.ur.browse`. The CLI, the URL scheme and the hotkeys all feed the same
+request dispatcher in the app; the CLI and the app talk over a per-pot Unix socket.
+
+### Lexicon
+
+- **Ur** — the suite; address scheme `<app>://<pot>/<kind>/<id>`
+- **clay** — the app template / source (UrKit + `UrAppSpec`)
+- **pot** — an instance: own config, slip scripts, website data store, socket, optional LaunchAgent
+- **throw** — create a pot; **glaze** — a pot's look (`glaze` config key); **slip** — user scripts
+  and styles; **kiln** — build / test / promote (`publish.sh`)
 
 ---
 
 ## Architecture
 
 ```
-main.swift               parse --config, create AppConfig, run NSApplication
-AppDelegate.swift        hotkeys (Carbon), IPC (DistributedNotificationCenter),
-                         URL scheme (NSAppleEventManager), menu bar, help panel
-SidebarPanel.swift       NSPanel subclass: WKWebView session pool, site picker,
-                         keyboard shortcuts, external browser, frame control
-FrameLayout.swift        named frame presets, %/anchor resolution, frameAuto rules
-SitePicker.swift         frosted-glass NSView with NSTableView + NSSearchField
-Config.swift             AppConfig / SiteConfig / HotkeysConfig, canonicalURLString,
-                         NSColor hex init, launch frame selection
-HelpContent.swift        self-contained HTML rendered in a WKWebView for the Help panel
-Sources/gander-cli/      thin CLI: parse args, post one DistributedNotificationCenter
-                         notification, sleep 150ms to let the OS deliver it, exit
+Package.swift            products: UrKit (library), UrBrowseApp, ur-browse (CLI)
+Sources/UrKit/           Foundation-only, shared by every Ur app
+  Pot.swift                config / slip / socket / LaunchAgent paths, name rules, storage UUID
+  Request.swift Response.swift  one addressed command shape from argv, URLs and the wire
+  IPC.swift                Unix-socket server + client (request/reply)
+  CLI.swift                UrAppSpec + UrCLI: pots / throw / start / help, --json / --alfred,
+                           autostart, Alfred Script Filter output
+Sources/UrBrowseSpec/BrowseSpec.swift   the verb list, usage text and UrAppSpec for Ur Browse
+Sources/UrBrowse/        the app (target UrBrowseApp)
+  main.swift               launch forms (--pot, --config), pot folder, migration from
+                           ~/.config/gander/<name>.json
+  AppDelegate.swift        socket server, URL scheme (NSAppleEventManager) + forwarding,
+                           one dispatcher for socket and URL requests, menu bar, help panel
+  BrowseCommand.swift      typed verbs + the single validator
+  SidebarPanel.swift       NSPanel subclass: WKWebView session pool, keyboard shortcuts,
+                           external browser, frame control
+  SiteStore.swift         site list, ids, URL matching, temporary sites, shortcuts (pure logic)
+  Slip.swift              user scripts / styles (pure parsing + wrapping)
+  Replies.swift           Encodable payloads behind --json
+  FrameLayout.swift  SitePicker.swift  FindBar.swift  Config.swift  HelpContent.swift
+Sources/ur-browse-cli/main.swift   `UrCLI(BrowseSpec.spec).run()`
+scripts/bundle.sh        assembles "Ur Browse.app"; used by build.sh and scripts/build-release.sh
 ```
+
+Adding a verb = `BrowseSpec.verbs` + `BrowseCommand` + `AppDelegate.execute`, nothing else.
 
 ---
 
@@ -117,7 +141,9 @@ Carbon `RegisterEventHotKey`:
 The signature `0x47414E44` is the ASCII encoding of `GAND` — a stable 4-byte app identifier
 required by the Carbon API. Arbitrary but must be unique per app.
 
-### NSDistributedNotificationCenter for IPC
+### NSDistributedNotificationCenter for IPC (superseded 2026-11-03 — see "Socket IPC replaces DistributedNotificationCenter")
+
+*History. Gander only; Ur Browse uses a Unix socket.*
 
 The CLI posts a named notification; the app observes it. No XPC, no sockets, no pipes, no
 service registration, no entitlements.
@@ -155,7 +181,9 @@ with 50 it would be wasteful.
 (443 for https, 80 for http), and adds a trailing slash for bare hosts. This prevents duplicate
 sessions for `https://github.com` vs `https://GitHub.com/` vs `https://github.com:443/`.
 
-### Multiple instances
+### Multiple instances (superseded 2026-11-03 — see "Pots and per-pot WKWebsiteDataStore")
+
+*History: these are now called pots; most of the rules below changed.*
 
 Each instance is a separate process launched with `GanderApp --config <path>`. The `name` field
 in the config drives:
@@ -387,10 +415,13 @@ binary named `GanderApp` — which launches and exits immediately with no error.
 
 ## Config Schema Reference
 
+*Since the rename the file lives at `~/.config/ur/browse/<pot>/config.json`. `color` is now `glaze` (old key still read); new keys: `glaze`, `ephemeral` (in-memory website data), and an optional `id` on each site. The example below is otherwise current.*
+
 ```json
 {
   "name":            "default",
-  "color":           "#4A90D9",
+  "glaze":           "#4A90D9",
+  "ephemeral":       false,
   "width":           420,
   "defaultUrl":      "https://google.com",
   "chrome":          true,
@@ -425,7 +456,7 @@ binary named `GanderApp` — which launches and exits immediately with no error.
     "prev":   "cmd+shift+["
   },
   "sites": [
-    { "name": "GitHub",  "url": "https://github.com" },
+    { "id": "gh", "name": "GitHub",  "url": "https://github.com" },
     { "name": "Pinned",  "url": "https://example.com", "shortcut": 1 }
   ]
 }
@@ -448,16 +479,29 @@ Hotkey format: `"modifier+modifier+key"` where modifiers are `cmd`, `shift`, `op
 
 ## Reuse as a Template
 
-This project is a clean minimal template for no-Xcode NSPanel Mac apps. The pattern:
-- No Xcode project, no provisioning, no Developer account required
-- Carbon hotkeys (no TCC/Input Monitoring permission)
-- NSDistributedNotificationCenter IPC between CLI and app
-- Homebrew Cask distribution with automated SHA256 and version updates
-- GitHub Actions CI/CD: build → artifact → Release → Cask update in one workflow
+The reusable skeleton is **`Sources/UrKit` + `UrAppSpec`** (in `UrKit/CLI.swift`) — "clay".
+UrKit gives a new Ur app pots (paths, names, storage ids), the addressed `Request`/`Response`
+shape (argv, `<scheme>://` URLs and the wire are one parser), the Unix-socket IPC, and the whole
+CLI (`pots`, `throw`, `start`, `--json`, `--alfred`, autostart, LaunchAgent via `--login`). An app
+supplies only a spec and its own behaviour.
 
-To fork for a new app: update `Package.swift` names, replace `Sources/Gander/` with your
-source, replace `Sources/gander-cli/` with your CLI, update `Casks/gander.rb`, update
-notification name prefix (`com.gander.`) and hotkey signature (`0x47414E44 / GAND`).
+To make a new Ur app (ur-mail, ur-notes, …):
+- Depend on the `UrKit` product; copy `Sources/UrBrowseSpec` → `Sources/Ur<App>Spec` and fill in
+  `UrAppSpec` (app name, command, bundle id, schemes, verbs, autostart verbs, `throw` options,
+  usage text). The spec is a separate module so the app and the CLI share one verb list.
+- `Sources/ur-<app>-cli/main.swift` is one line: `UrCLI(<App>Spec.spec).run()`.
+- In the app: start an `IPCServer` on `pot.socketURL` (exit if the pot is already running), turn
+  each `Request` into a typed command in one validator (see `BrowseCommand`), and dispatch in one
+  place (`AppDelegate.handle` / `execute`). Forward URL-scheme events for other pots to their
+  socket.
+- Keep pure logic in files that wrap `import UrKit` in `#if canImport(UrKit)` so `logic-test.sh`
+  can compile them as one module.
+- Reuse `scripts/bundle.sh`, the Cask layout (`ur-<app>` plus a binary stanza pointing at
+  `Contents/MacOS/ur-<app>-cli`), `publish.sh` and the GitHub Actions release flow.
+
+What carries over unchanged from the original template: no Xcode project or Developer account,
+Homebrew Cask distribution with automated SHA256 and version updates, CI/CD (build → artifact →
+Release → Cask update in one workflow). Hotkeys are local to each pot's panel (see the superseded Carbon section).
 
 ---
 
@@ -666,7 +710,9 @@ automatically. This is why `showSitePicker()` calls `makeKeyAndOrderFront` befor
 `makeFirstResponder`, and why `becomeKey()` is overridden to refocus the search field if the
 picker is open when the panel eventually does become key.
 
-### How the `gander://` URL Scheme Works
+### How the `gander://` URL Scheme Works (now `ur-browse://` and `gander://`)
+
+*Both schemes are registered by the bundle; see "URL scheme events go to an arbitrary process of the bundle" for the multi-pot twist.*
 
 URL scheme registration happens via Launch Services when the app is installed. The system
 routes `gander://` URLs to your app via Apple Events:
@@ -1053,3 +1099,143 @@ JSON array, instead of talking to DEVONthink itself. The `llm` instance uses
   starts false, so no code path opens the picker or leaves the page blank. Not reproduced.
 - **Open:** DEVONthink Apple Events authorization for the launchd llm instance is unverified.
   Terminal runs of `listBookmarks` fail with "Not authorized".
+
+---
+
+## Ur Browse sections (2026-11-03)
+
+Everything below was written during the rename to Ur Browse and the UrKit refactor
+(commits a9bf3ff and df9ef79).
+
+### Socket IPC replaces DistributedNotificationCenter
+
+**What happened.** The Gander CLI posted a notification and slept 150 ms. It could not ask anything
+("which sites do you have?", "what page is showing?"), could not report an error from the app, had
+no exit codes, and could not tell whether a pot was running. Notification names also embedded the
+instance name, so every new verb needed a new name and a new observer.
+
+**Root cause.** DistributedNotificationCenter is fire-and-forget broadcast, not a request/reply
+channel. That is fine for toggle, useless for addressable sites and `--json`.
+
+**Decision.** Each pot owns a Unix socket, `~/Library/Application Support/Ur/run/browse/<pot>.sock`
+(`UR_RUN_DIR` overrides the root). Wire format: one JSON `Request` plus `\n` in, one JSON `Response`
+plus `\n` out, then close. Consequences:
+- Request/reply: `current`, `sites --json`, `info` return data; errors from the app come back to the
+  shell with exit code 1.
+- Liveness: `connect` succeeds if and only if the pot is running. The CLI exits **2** with "pot is not
+  running — start it with …" for other verbs, and starts the pot for `autostartVerbs`
+  (`toggle show open site picker`).
+- A second launch of a running pot fails to claim the socket and exits 0, which ends the old
+  "two default instances" LaunchAgent / Open-at-Login problem.
+- No sleep. Not sandbox-compatible either (neither was the old transport).
+- Socket paths have a 104-byte limit (`sun_path`), which is why pot names are limited to 40 characters.
+
+### Pots and per-pot WKWebsiteDataStore (cookies were shared across instances)
+
+**What happened.** Two Gander instances (`default`, `llm`) were not independent after all: both
+processes shared one bundle id, so they shared WebKit's default website data store. Logging in to a
+site in one logged you in to the other, and a "work" and a "personal" instance could never hold
+different accounts.
+
+**Root cause.** `WKWebsiteDataStore.default()` is keyed by bundle id, not by process.
+
+**Fix.** Every pot uses `WKWebsiteDataStore(forIdentifier: pot.storageIdentifier)`, where the UUID
+is derived deterministically from `ur.<app>.<pot>` (so it is stable without storing anything).
+`ephemeral: true` in a pot's config uses `.nonPersistent()` instead — the smoke tests run on
+that. Cost: after upgrading from Gander everyone logs in again once, because the old data stayed in
+the default store.
+
+Pot layout: `~/.config/ur/browse/<pot>/config.json` and `slip/`; LaunchAgent label
+`io.ur.browse.<pot>`. `throw` writes the config (optionally `--from` another pot), creates `slip/`,
+and with `--login` installs and bootstraps the LaunchAgent. `main.swift` still understands
+`--config <file>` (old LaunchAgents, smoke tests) and uses the file's `name` as the pot; for
+`--pot`/folder launches the folder name wins. First start copies `~/.config/gander/<name>.json` into
+the pot folder (the original stays).
+
+### URL scheme events go to an arbitrary process of the bundle → forward to the target pot's socket
+
+**What happened.** With several pots running, `open -g "ur-browse://work/site/gh"` sometimes acted
+on the wrong pot or did nothing. Previously the name inside the notification routed it; with URLs,
+LaunchServices decides which process gets the Apple Event.
+
+**Root cause.** All pots are processes of one bundle. LaunchServices delivers a URL to one of them —
+not necessarily the pot named in the URL.
+
+**Fix.** `AppDelegate.handleURL` parses the URL into a `Request`; if `request.pot` is this process's
+pot it handles it, otherwise it sends the request to the target pot's socket on a background queue.
+A URL for a stopped pot whose verb is in `autostartVerbs` (`open`, `site`, `show`, `toggle`,
+`picker`) starts that pot first (`NSWorkspace.openApplication` with
+`createsNewApplicationInstance = true` and `--pot <name>`; a dev build spawns its binary), waits up
+to 8 s for its socket, then forwards. Other verbs for a stopped pot are dropped with a stderr
+message. Side effect: if no pot was running at all, LaunchServices first launches the default pot
+to receive the URL, and it stays running.
+
+### Single-module logic tests and #if canImport(UrKit)
+
+**What happened.** `logic-test.sh` compiles with plain `swiftc` (works with Command Line Tools, no
+SwiftPM), so it cannot link modules. After the split into UrKit / UrBrowseSpec / the app, the app
+files had `import UrKit` that does not exist when everything is compiled together.
+
+**Decision.** `logic-test.sh` compiles `Sources/UrKit/*.swift`, `BrowseSpec.swift` and the pure app
+files (Config, FrameLayout, SiteStore, BrowseCommand, Slip, Replies) plus the test runner into
+**one module**. Every file that is shared this way wraps its cross-module imports:
+
+```swift
+#if canImport(UrKit)
+import UrKit
+#endif
+```
+
+SwiftPM builds still see the real modules. Rules: keep logic that needs tests in AppKit-free (or
+only Config-level AppKit) files; add new pure files to the list in `logic-test.sh`; keep source
+paths relative (absolute paths break CI, see the older gotcha). The smoke test covers what the
+logic test can't — real socket, real pot, isolated by `UR_CONFIG_HOME`, `UR_RUN_DIR` and `ephemeral`.
+
+### Rename to Ur Browse (what changed for users)
+
+- Names: app `Ur Browse.app`, CLI `ur-browse`, bundle id `io.ur.browse`, macOS 14+. Gander stays as
+  the nickname and the goose stays.
+- Schemes: `ur-browse://` and legacy `gander://` both registered; the Cask installs `ur-browse`
+  and a `gander` alias, both symlinks to `Contents/MacOS/ur-browse-cli` (the `-cli` suffix is still
+  needed for the APFS case-collision reason above, and the same "dangling symlink" failure applies).
+- Cask `ur-browse`; `cask_renames.json` maps `gander` → `ur-browse`; release zip is
+  `UrBrowse-vX.Y.Z.zip`. The repo is renamed `o-o-o-o-o/gander` → `o-o-o-o-o/ur-browse` (redirects).
+- Config moved to `~/.config/ur/browse/<pot>/config.json`, copied from `~/.config/gander/<name>.json`
+  on first start; `color` → `glaze` (old key read).
+- Cookies reset once (per-pot data store). Old LaunchAgents (`io.gander.*.plist`) pass `--config`
+  and keep working but should be replaced with `ur-browse <pot> start --login`, which writes (or
+  updates) a LaunchAgent for an existing pot; `throw --login` does the same for a new one.
+- `build.sh` and `build-release.sh` share `scripts/bundle.sh`, so the local and CI bundle layout
+  can no longer drift (the original `build.sh`-without-CLI bug, see above).
+- New in the CLI: `pots`, `throw`, `start`, `site`, `sites --json|--alfred|--list`, `current`, `info`,
+  `slip`. Bare `sites` still means "toggle the picker" for old bindings.
+
+### Slip user scripts design
+
+**Goal.** Per-pot Greasemonkey-style customization (hide a banner, tweak a docs site) without
+making users edit the app.
+
+**Decisions.**
+- Plain files: `~/.config/ur/browse/<pot>/slip/*.js` and `*.css`, loaded in file-name order. Other
+  files (`.off`, README, dotfiles) are ignored — rename to disable.
+- Header lines in any comment style (`//`, `/* */`, `*`): `@name`, `@match`/`@include`, `@exclude`,
+  `@run-at` (`document-start` | `document-end`, `document-idle` = end), `@all-frames`, `@noframes`.
+  JS defaults to document-end, CSS to document-start. No `@match` = every page. No `GM_*` APIs.
+- Matching is done in the page, not by WebKit's match patterns: `Slip.wrappedSource()` wraps each
+  file in an IIFE that tests `location.href` against regexes generated from the globs (`*` is
+  anything; `*.` right after `://` also matches the bare domain; `<all_urls>`). The same regex
+  logic runs in Swift (`applies(to:)`) so logic-test can check it. Doing it in the page keeps
+  SPA navigations and subframes correct with one `WKUserScript` per file.
+- CSS is injected as a `<style data-slip="file">` by the same wrapper; JS gets
+  `//# sourceURL=slip/<file>` so it is findable in the inspector.
+- `ur-browse <pot> slip` reloads (no restart); `slip --list` shows what is loaded. `info --json`
+  lists the slip files too.
+
+
+## Pot dies with SIGPIPE on the first IPC request (TASK-6)
+
+The pot exited with status 141 when the CLI sent its first request; the CLI printed
+`no reply from …sock`, and the app left no log and no crash report. `SO_NOSIGPIPE` is set on the
+accepted fd, but a write to a closed pipe elsewhere still raised SIGPIPE and the default action
+killed the process. Fix: `signal(SIGPIPE, SIG_IGN)` in `IPCServer.start` (UrKit), so every Ur app
+gets it. Diagnose by running the binary in the foreground and reading `$?`: 141 = 128 + SIGPIPE.

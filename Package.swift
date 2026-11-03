@@ -2,16 +2,25 @@
 import PackageDescription
 
 let package = Package(
-    name: "Gander",
-    platforms: [.macOS(.v13)],
+    name: "UrBrowse",
+    platforms: [.macOS(.v14)],
+    products: [
+        // Shared Ur skeleton (pots, addressed requests, socket IPC, generic CLI). Other Ur apps
+        // (ur-mail, ur-notes) depend on this product.
+        .library(name: "UrKit", targets: ["UrKit"]),
+    ],
     targets: [
+        .target(name: "UrKit", path: "Sources/UrKit"),
+        .target(name: "UrBrowseSpec", dependencies: ["UrKit"], path: "Sources/UrBrowseSpec"),
         .executableTarget(
-            name: "GanderApp",
-            path: "Sources/Gander"
+            name: "UrBrowseApp",
+            dependencies: ["UrKit", "UrBrowseSpec"],
+            path: "Sources/UrBrowse"
         ),
         .executableTarget(
-            name: "gander",
-            path: "Sources/gander-cli"
+            name: "ur-browse",
+            dependencies: ["UrKit", "UrBrowseSpec"],
+            path: "Sources/ur-browse-cli"
         ),
     ]
 )

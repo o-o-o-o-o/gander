@@ -1,4 +1,6 @@
 .build/
+Ur Browse.app/
+UrBrowse-v*.zip
 Gander.app/
 Gander-v*.zip
 *.o

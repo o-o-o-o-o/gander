@@ -23,21 +23,21 @@ jobs:
         run: |
           VERSION="${{ github.event.inputs.version }}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "url=https://github.com/${{ github.repository }}/releases/download/${VERSION}/Gander-${VERSION}.zip" >> "$GITHUB_OUTPUT"
+          echo "url=https://github.com/${{ github.repository }}/releases/download/${VERSION}/UrBrowse-${VERSION}.zip" >> "$GITHUB_OUTPUT"
 
       - name: Calculate SHA256
         id: sha
         run: |
-          curl -sL "${{ steps.release.outputs.url }}" -o Gander.zip
-          echo "sha256=$(sha256sum Gander.zip | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          curl -sL "${{ steps.release.outputs.url }}" -o UrBrowse.zip
+          echo "sha256=$(sha256sum UrBrowse.zip | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
       - name: Update Cask and push
         run: |
           VERSION="${{ steps.release.outputs.version }}"
-          sed -i "s/  version \".*\"/  version \"${VERSION#v}\"/" Casks/gander.rb
-          sed -i "s/  sha256 \".*\"/  sha256 \"${{ steps.sha.outputs.sha256 }}\"/" Casks/gander.rb
+          sed -i "s/  version \".*\"/  version \"${VERSION#v}\"/" Casks/ur-browse.rb
+          sed -i "s/  sha256 \".*\"/  sha256 \"${{ steps.sha.outputs.sha256 }}\"/" Casks/ur-browse.rb
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Casks/gander.rb
+          git add Casks/ur-browse.rb
           git commit -m "Update Cask to ${VERSION}"
           git push origin main

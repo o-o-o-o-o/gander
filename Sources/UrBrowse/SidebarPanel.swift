@@ -1,14 +1,21 @@
 import AppKit
 import WebKit
+import UrKit
 
 private let PICKER_HEIGHT: CGFloat = 260
 
 class SidebarPanel: NSPanel, NSToolbarDelegate {
     private let config: AppConfig
-    private var sites: [SiteConfig]               // config.sites, replaced by sitesCommand output
+    let pot: Pot
+    private(set) var store: SiteStore              // sites, temporary sites, shortcuts, ids
     private var sitesReloading = false
-    private var transientSites: [SiteConfig] = []
-    private var transientShortcuts: [Int: String] = [:]  // runtime-only; set via URL scheme shortcut param
+
+    // One website data store and one user-content controller per pot, shared by every session:
+    // the data store isolates this pot's cookies/logins from other pots (true SSBs), and the
+    // shared controller lets `slip` reload user scripts for all sessions at once.
+    private let dataStore: WKWebsiteDataStore
+    private let contentController = WKUserContentController()
+    private(set) var slipScripts: [SlipScript] = []
 
     // One persistent WKWebView per canonical URL — sessions (cookies, JS state, scroll) survive
     // site switches. Switching just swaps which WKWebView is in the view hierarchy.
@@ -36,9 +43,13 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     private var loadingObservation:         NSKeyValueObservation?
     private var progressCollapseWorkItem:   DispatchWorkItem?
 
-    init(config: AppConfig) {
+    init(config: AppConfig, pot: Pot) {
         self.config = config
-        self.sites = config.sites
+        self.pot = pot
+        self.store = SiteStore(sites: config.sites, pinned: config.pinned)
+        self.dataStore = config.ephemeral
+            ? .nonPersistent()
+            : WKWebsiteDataStore(forIdentifier: pot.storageIdentifier)
 
         let screen = NSScreen.main ?? NSScreen.screens[0]
         activePresetName = config.launchPresetName(screenCount: NSScreen.screens.count)
@@ -81,7 +92,7 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             if cmd && !shift && noExtra && ch == "]" { self.activeWebView?.goForward(); return nil }
             // Site cycling — no isKeyWindow guard, consistent with goBack/goForward above.
             // A local monitor only sees events while we're the active app, so this is already
-            // scoped to "Gander frontmost".
+            // scoped to "Ur Browse frontmost".
             // keyCode fallback (33/30) covers layouts where "[" / "]" aren't on those keys.
             if cmd && shift && noExtra && (ch == "[" || event.keyCode == 33) { self.prevSite(); return nil }
             if cmd && shift && noExtra && (ch == "]" || event.keyCode == 30) { self.nextSite(); return nil }
@@ -93,8 +104,7 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
                     self.openURL(self.config.defaultUrl, animated: true)
                     return nil
                 }
-                if (1...9).contains(n),
-                   self.config.pinned != nil || !self.transientShortcuts.isEmpty {
+                if (1...9).contains(n), self.store.hasShortcuts {
                     self.activateShortcut(n)
                     return nil
                 }
@@ -115,13 +125,12 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             return event
         }
 
+        loadSlip()
         openURL(config.defaultUrl, animated: false)
         reloadSites()
     }
 
-    private var availableSites: [SiteConfig] {
-        sites + transientSites
-    }
+    private var availableSites: [SiteConfig] { store.all }
 
     /// Re-runs `sitesCommand` off the main thread; on success swaps in the new list.
     /// Failure or empty output keeps the current list.
@@ -134,87 +143,36 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
                 guard let self else { return }
                 self.sitesReloading = false
                 guard let fresh else { return }
-                self.sites = fresh
+                self.store.replaceConfigured(fresh)
                 self.refreshPickerSites()
             }
         }
     }
 
-    // Returns sites keyed by shortcut number based on the pinned mode.
-    // "auto"   → first 9 config sites get ⌘1–⌘9 in order
-    // "manual" → sites with a shortcut field; first occurrence wins on duplicates
-    private var configShortcuts: [Int: SiteConfig] {
-        switch config.pinned {
-        case "auto":
-            return Dictionary(uniqueKeysWithValues:
-                sites.prefix(9).enumerated().map { ($0.offset + 1, $0.element) })
-        case "manual":
-            var result: [Int: SiteConfig] = [:]
-            for site in sites where site.shortcut != nil {
-                let n = site.shortcut!
-                if result[n] == nil { result[n] = site }  // first wins
-            }
-            return result
-        default:
-            return [:]
-        }
-    }
-
-    // Merged map of url → shortcut number for the picker; transient overrides config.
-    private func shortcutURLMap() -> [String: Int] {
-        var result: [String: Int] = [:]
-        for (n, site) in configShortcuts { result[site.url] = n }
-        for (n, url) in transientShortcuts { result[url] = n }
-        return result
-    }
-
     private func refreshPickerSites() {
-        pickerView.configure(sites: availableSites, shortcuts: shortcutURLMap())
+        pickerView.configure(sites: availableSites, shortcuts: store.shortcutURLMap())
     }
 
     func setTransientShortcut(_ n: Int, url: String) {
-        guard (1...9).contains(n) else { return }
-        transientShortcuts[n] = url
-        _ = siteForOpening(urlString: url)  // creates transient site entry + session if not already in list
-        refreshPickerSites()                // update shortcut badges
+        store.setTransientShortcut(n, url: url)  // creates a temporary site entry if needed
+        refreshPickerSites()                     // update shortcut badges
     }
 
     private func activateShortcut(_ n: Int) {
-        if let url = transientShortcuts[n] {
-            // switchToSite restores the existing session; siteForOpening creates one if needed
-            switchToSite(siteForOpening(urlString: url))
-        } else if let site = configShortcuts[n] {
-            switchToSite(site)
-        }
+        let before = availableSites.count
+        guard let site = store.site(forShortcut: n) else { return }
+        if availableSites.count != before { refreshPickerSites() }
+        switchToSite(site)
     }
 
     private func siteKey(for urlString: String) -> String {
-        canonicalURLString(urlString)
-    }
-
-    private func site(namedByURL urlString: String) -> SiteConfig? {
-        let key = siteKey(for: urlString)
-        return availableSites.first { siteKey(for: $0.url) == key }
-    }
-
-    private func temporarySiteName(for urlString: String) -> String {
-        if let host = URL(string: urlString)?.host, !host.isEmpty {
-            return host
-        }
-        return urlString
+        SiteStore.key(for: urlString)
     }
 
     private func siteForOpening(urlString: String) -> SiteConfig {
-        if let existing = site(namedByURL: urlString) {
-            return existing
-        }
-
-        let temporary = SiteConfig(name: temporarySiteName(for: urlString),
-                                   url: urlString,
-                                   temporary: true)
-        transientSites.append(temporary)
-        refreshPickerSites()
-        return temporary
+        let (site, added) = store.siteForOpening(urlString: urlString)
+        if added { refreshPickerSites() }
+        return site
     }
 
     // MARK: Layout
@@ -273,7 +231,7 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     // MARK: Session management
 
     private func makeWebView() -> WKWebView {
-        let wv = GanderWebView(frame: .zero, configuration: Self.makeWebViewConfiguration())
+        let wv = BrowseWebView(frame: .zero, configuration: makeWebViewConfiguration())
         wv.translatesAutoresizingMaskIntoConstraints = false
         // Default WKWebView UA omits "Version/… Safari/…"; some login flows reject that.
         wv.customUserAgent = Self.safariUserAgent
@@ -287,13 +245,39 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     // Injected at document start so it applies before first paint, in every frame (embedded
     // maps/videos included) — same injection shape libraries like driceroland/Search use for
     // page-wide CSS (their Veiling.style helper).
-    private static func makeWebViewConfiguration() -> WKWebViewConfiguration {
+    private func makeWebViewConfiguration() -> WKWebViewConfiguration {
         let config = WKWebViewConfiguration()
+        config.websiteDataStore = dataStore
+        config.userContentController = contentController
+        return config
+    }
+
+    private static let hideScrollbarsScript: WKUserScript = {
         let css = "::-webkit-scrollbar{display:none!important}html{scrollbar-width:none!important}"
         let source = "(function(){var s=document.createElement('style');s.textContent=\"\(css)\";document.documentElement.appendChild(s);})();"
-        let script = WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: false)
-        config.userContentController.addUserScript(script)
-        return config
+        return WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+    }()
+
+    // MARK: Slip (user scripts)
+
+    /// (Re)reads the pot's slip folder and installs the scripts into the shared content
+    /// controller. Existing pages pick them up on their next load; `reloadSlip` also reloads
+    /// the active page so edits show immediately.
+    private func loadSlip() {
+        contentController.removeAllUserScripts()
+        contentController.addUserScript(Self.hideScrollbarsScript)
+        slipScripts = SlipScript.load(from: pot.slipDirectory)
+        for script in slipScripts {
+            contentController.addUserScript(
+                WKUserScript(source: script.wrappedSource(),
+                             injectionTime: script.runAt == .documentStart ? .atDocumentStart : .atDocumentEnd,
+                             forMainFrameOnly: !script.allFrames))
+        }
+    }
+
+    func reloadSlip() {
+        loadSlip()
+        activeWebView?.reload()
     }
 
     private static let safariUserAgent: String = {
@@ -467,17 +451,46 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
         switchToSite(availableSites[activeSiteIndex])
     }
 
-    // MARK: Public API
+    // MARK: Public API — addressable sites
 
-    // Match by exact canonical URL, then fall back to host+path (ignoring query string)
-    // so that search URLs like ?q=term are associated with their parent site entry.
-    private func siteMatchingURL(_ urlString: String) -> SiteConfig? {
-        if let exact = site(namedByURL: urlString) { return exact }
-        guard let comps = URLComponents(string: urlString), let host = comps.host else { return nil }
-        return availableSites.first {
-            guard let sc = URLComponents(string: $0.url), let sh = sc.host else { return false }
-            return sh == host && sc.path == comps.path
+    /// `site <id>[/path]`: switch to the site's session; with a path, deep-link inside it.
+    @discardableResult
+    func openSite(id: String, path: String?) throws -> SiteConfig {
+        guard let site = store.site(id: id) else {
+            throw UrError("no site '\(id)' in pot '\(pot.name)' (list them with: ur-browse \(pot.name) sites --list)")
         }
+        switchToSite(site)
+        if let path, let url = URL(string: SiteStore.deepURL(base: site.url, path: path)) {
+            activeWebView?.load(URLRequest(url: url))
+        }
+        return site
+    }
+
+    func siteListing() -> [SiteInfo] {
+        let shortcuts = store.shortcutURLMap()
+        let activeID = activeSite?.id
+        return availableSites.map { site in
+            SiteInfo(id: site.id ?? "", name: site.name, url: site.url,
+                     shortcut: shortcuts[site.url], temporary: site.temporary,
+                     open: sessions[siteKey(for: site.url)] != nil,
+                     active: site.id == activeID,
+                     address: BrowseAddress.site(pot: pot.name, id: site.id ?? ""))
+        }
+    }
+
+    /// The configured/temporary site whose session is in front, if any.
+    var activeSite: SiteConfig? {
+        guard let activeKey else { return nil }
+        return availableSites.first { siteKey(for: $0.url) == activeKey }
+    }
+
+    func currentInfo() -> CurrentInfo {
+        let wv = activeWebView
+        let url = wv?.url?.absoluteString
+        return CurrentInfo(pot: pot.name, site: activeSite?.id, name: activeSite?.name,
+                           url: (url == "about:blank") ? activeSite?.url : url,
+                           title: wv?.title, visible: isVisible,
+                           address: activeSite.flatMap { $0.id }.map { BrowseAddress.site(pot: pot.name, id: $0) })
     }
 
     private func copyCurrentURL() {
@@ -552,7 +565,7 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     }
 
     func load(_ urlString: String) {
-        if let matched = siteMatchingURL(urlString) {
+        if let matched = store.site(matching: urlString) {
             switchToSite(matched)
             if let url = URL(string: urlString) { activeWebView?.load(URLRequest(url: url)) }
         } else if let url = URL(string: urlString), let wv = activeWebView {
@@ -619,7 +632,7 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
 
     private func pickerDidSelect(url: String) {
         hideSitePicker()
-        if let site = site(namedByURL: url) {
+        if let site = store.site(forURL: url) {
             switchToSite(site)
         } else {
             openURL(url)
@@ -810,7 +823,7 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     // MARK: Chrome — toolbar & color stripe
 
     private func setupToolbar() {
-        let tb = NSToolbar(identifier: "Gander-\(config.name)")
+        let tb = NSToolbar(identifier: "UrBrowse-\(config.name)")
         tb.delegate = self
         tb.displayMode = .iconOnly
         tb.autosavesConfiguration = false
@@ -844,97 +857,4 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
     @objc private func goBack()    { activeWebView?.goBack() }
     @objc private func goForward() { activeWebView?.goForward() }
     @objc func toggleSitePicker() { pickerVisible ? hideSitePicker() : showSitePicker() }
-}
-
-private final class FindBarView: NSView, NSSearchFieldDelegate {
-    private let field  = NSSearchField()
-    private let status = NSTextField(labelWithString: "")
-    var onFind:       ((String, Bool) -> Void)?
-    var onTextChange: ((String) -> Void)?
-    var onClose:      (() -> Void)?
-    var searchText:  String        { field.stringValue }
-    var searchField: NSSearchField { field }
-
-    override init(frame: NSRect) { super.init(frame: frame); setup() }
-    required init?(coder: NSCoder) { nil }
-
-    func controlTextDidChange(_ obj: Notification) {
-        let text = field.stringValue
-        status.stringValue = ""
-        onFind?(text, false)
-        onTextChange?(text)
-    }
-
-    func showStatus(_ text: String, isError: Bool) {
-        status.stringValue = text
-        status.textColor = isError ? .systemRed : .secondaryLabelColor
-    }
-
-    private func setup() {
-        let bg = NSVisualEffectView()
-        bg.material = .hudWindow
-        bg.blendingMode = .withinWindow
-        bg.state = .active
-        bg.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(bg)
-
-        let border = NSView()
-        border.wantsLayer = true
-        border.layer?.backgroundColor = NSColor.separatorColor.cgColor
-        border.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(border)
-
-        field.delegate = self
-        field.target = self
-        field.action = #selector(findNext)
-        field.placeholderString = "Find in page…"
-        field.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(field)
-
-        status.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        status.textColor = .secondaryLabelColor
-        status.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(status)
-
-        func btn(_ sym: String, _ desc: String, _ sel: Selector) -> NSButton {
-            let b = NSButton()
-            b.image = NSImage(systemSymbolName: sym, accessibilityDescription: desc)
-            b.isBordered = false
-            b.target = self
-            b.action = sel
-            b.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(b)
-            return b
-        }
-        let prev  = btn("chevron.up",   "Previous", #selector(findPrev))
-        let next  = btn("chevron.down", "Next",     #selector(findNext))
-        let close = btn("xmark",        "Close",    #selector(closeBar))
-
-        NSLayoutConstraint.activate([
-            bg.topAnchor.constraint(equalTo: topAnchor),
-            bg.bottomAnchor.constraint(equalTo: bottomAnchor),
-            bg.leadingAnchor.constraint(equalTo: leadingAnchor),
-            bg.trailingAnchor.constraint(equalTo: trailingAnchor),
-            border.topAnchor.constraint(equalTo: topAnchor),
-            border.leadingAnchor.constraint(equalTo: leadingAnchor),
-            border.trailingAnchor.constraint(equalTo: trailingAnchor),
-            border.heightAnchor.constraint(equalToConstant: 1),
-            field.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            field.centerYAnchor.constraint(equalTo: centerYAnchor),
-            field.widthAnchor.constraint(equalToConstant: 160),
-            status.leadingAnchor.constraint(equalTo: field.trailingAnchor, constant: 6),
-            status.centerYAnchor.constraint(equalTo: centerYAnchor),
-            status.widthAnchor.constraint(equalToConstant: 72),
-            prev.leadingAnchor.constraint(equalTo: status.trailingAnchor, constant: 4),
-            prev.centerYAnchor.constraint(equalTo: centerYAnchor),
-            next.leadingAnchor.constraint(equalTo: prev.trailingAnchor, constant: 2),
-            next.centerYAnchor.constraint(equalTo: centerYAnchor),
-            close.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
-            close.centerYAnchor.constraint(equalTo: centerYAnchor),
-        ])
-    }
-
-    @objc private func findNext() { onFind?(field.stringValue, false) }
-    @objc private func findPrev() { onFind?(field.stringValue, true) }
-    @objc private func closeBar() { onClose?() }
 }

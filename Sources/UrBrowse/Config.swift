@@ -33,15 +33,17 @@ struct HotkeysConfig: Codable {
     }
 }
 
-struct SiteConfig: Codable {
+struct SiteConfig: Codable, Equatable {
+    var id: String?     // explicit address (`site <id>`); nil → derived from name by SiteStore
     var name: String
     var url: String
     var temporary: Bool
     var shortcut: Int?  // 1–9; used in manual pinned mode only; values outside range are ignored
 
-    enum CodingKeys: String, CodingKey { case name, url, temporary, shortcut }
+    enum CodingKeys: String, CodingKey { case id, name, url, temporary, shortcut }
 
-    init(name: String, url: String, temporary: Bool = false, shortcut: Int? = nil) {
+    init(id: String? = nil, name: String, url: String, temporary: Bool = false, shortcut: Int? = nil) {
+        self.id = id
         self.name = name
         self.url = url
         self.temporary = temporary
@@ -50,6 +52,10 @@ struct SiteConfig: Codable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        // Numbers are accepted too, so a sitesCommand can pass e.g. a database row id.
+        if let s = try? c.decode(String.self, forKey: .id) { id = s.isEmpty ? nil : s }
+        else if let n = try? c.decode(Int.self, forKey: .id) { id = String(n) }
+        else { id = nil }
         name = try c.decode(String.self, forKey: .name)
         url = try c.decode(String.self, forKey: .url)
         temporary = (try? c.decode(Bool.self, forKey: .temporary)) ?? false
@@ -59,6 +65,7 @@ struct SiteConfig: Codable {
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
+        if let id { try c.encode(id, forKey: .id) }
         try c.encode(name, forKey: .name)
         try c.encode(url, forKey: .url)
         if temporary { try c.encode(temporary, forKey: .temporary) }
@@ -67,8 +74,8 @@ struct SiteConfig: Codable {
 }
 
 struct AppConfig: Codable {
-    var name: String
-    var color: String?       // hex, e.g. "#4A90D9"
+    var name: String         // pot name; set from --pot / the pot folder by main.swift
+    var glaze: String?       // hex, e.g. "#4A90D9" — progress bar + menu bar tint ("color" still accepted)
     var width: Double
     var height: Double?
     var x: Double?
@@ -84,12 +91,18 @@ struct AppConfig: Codable {
     var hotkeys: HotkeysConfig
     var sites: [SiteConfig]
     var sitesCommand: String?   // shell command printing a JSON [{name,url}] array; replaces `sites` when it succeeds
+    var ephemeral: Bool         // true = in-memory website data (nothing persisted); used by smoke tests
+
+    enum CodingKeys: String, CodingKey {
+        case name, glaze, color, width, height, x, y, frame, frames, frameAuto, defaultUrl, chrome
+        case stripeHeight, externalBrowser, pinned, hotkeys, sites, sitesCommand, ephemeral
+    }
 
     // All fields optional in JSON — everything has a sane default
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         name         = (try? c.decode(String.self,          forKey: .name))         ?? "default"
-        color        =  try? c.decode(String.self,          forKey: .color)
+        glaze        = (try? c.decode(String.self,          forKey: .glaze)) ?? (try? c.decode(String.self, forKey: .color))
         width        = (try? c.decode(Double.self,          forKey: .width))        ?? 420
         height       =  try? c.decode(Double.self,          forKey: .height)
         x            =  try? c.decode(Double.self,          forKey: .x)
@@ -106,23 +119,48 @@ struct AppConfig: Codable {
         frame        = try? c.decode(String.self,            forKey: .frame)
         frames       = try? c.decode([String: FramePreset].self, forKey: .frames)
         frameAuto    = try? c.decode(FrameAutoConfig.self, forKey: .frameAuto)
+        ephemeral    = (try? c.decode(Bool.self,            forKey: .ephemeral))    ?? false
     }
 
-    init(name: String = "default", color: String? = nil, width: Double = 420,
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(name, forKey: .name)
+        try c.encodeIfPresent(glaze, forKey: .glaze)
+        try c.encode(width, forKey: .width)
+        try c.encodeIfPresent(height, forKey: .height)
+        try c.encodeIfPresent(x, forKey: .x)
+        try c.encodeIfPresent(y, forKey: .y)
+        try c.encodeIfPresent(frame, forKey: .frame)
+        try c.encodeIfPresent(frames, forKey: .frames)
+        try c.encodeIfPresent(frameAuto, forKey: .frameAuto)
+        try c.encode(defaultUrl, forKey: .defaultUrl)
+        try c.encode(chrome, forKey: .chrome)
+        try c.encode(stripeHeight, forKey: .stripeHeight)
+        try c.encode(externalBrowser, forKey: .externalBrowser)
+        try c.encodeIfPresent(pinned, forKey: .pinned)
+        try c.encode(hotkeys, forKey: .hotkeys)
+        try c.encode(sites, forKey: .sites)
+        try c.encodeIfPresent(sitesCommand, forKey: .sitesCommand)
+        if ephemeral { try c.encode(ephemeral, forKey: .ephemeral) }
+    }
+
+    init(name: String = "default", glaze: String? = nil, width: Double = 420,
          height: Double? = nil, x: Double? = nil, y: Double? = nil,
          frame: String? = nil, frames: [String: FramePreset]? = nil,
          frameAuto: FrameAutoConfig? = nil,
          defaultUrl: String = "https://google.com", chrome: Bool = true,
          stripeHeight: Double = 2, externalBrowser: String = "Safari",
          pinned: String? = nil, hotkeys: HotkeysConfig = HotkeysConfig(),
-         sites: [SiteConfig] = AppConfig.builtinSites, sitesCommand: String? = nil) {
-        self.name = name; self.color = color; self.width = width
+         sites: [SiteConfig] = AppConfig.builtinSites, sitesCommand: String? = nil,
+         ephemeral: Bool = false) {
+        self.name = name; self.glaze = glaze; self.width = width
         self.height = height; self.x = x; self.y = y
         self.frame = frame; self.frames = frames; self.frameAuto = frameAuto
         self.defaultUrl = defaultUrl; self.chrome = chrome
         self.stripeHeight = stripeHeight; self.externalBrowser = externalBrowser
         self.pinned = pinned; self.hotkeys = hotkeys; self.sites = sites
         self.sitesCommand = sitesCommand
+        self.ephemeral = ephemeral
     }
 
     static let builtinSites: [SiteConfig] = [
@@ -136,20 +174,9 @@ struct AppConfig: Codable {
     var sidebarWidth: CGFloat { CGFloat(width) }
 
     var accentColor: NSColor? {
-        guard let hex = color else { return nil }
+        guard let hex = glaze else { return nil }
         return NSColor(hex: hex)
     }
-
-    // Notification names are scoped per instance so multiple instances coexist
-    var notifToggle: Notification.Name { .init("com.gander.\(name).toggle") }
-    var notifShow:   Notification.Name { .init("com.gander.\(name).show") }
-    var notifHide:   Notification.Name { .init("com.gander.\(name).hide") }
-    var notifOpen:   Notification.Name { .init("com.gander.\(name).open") }
-    var notifFrame:  Notification.Name { .init("com.gander.\(name).frame") }
-    var notifSites:  Notification.Name { .init("com.gander.\(name).sites") }
-    var notifNext:    Notification.Name { .init("com.gander.\(name).next") }
-    var notifPrev:    Notification.Name { .init("com.gander.\(name).prev") }
-    var notifMenuBar: Notification.Name { .init("com.gander.\(name).menubar") }
 
     /// Preset used at launch: `frameAuto` match for current screen count, then `frame`, then legacy root fields.
     func launchPresetName(screenCount: Int) -> String {
