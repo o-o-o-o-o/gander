@@ -5,7 +5,7 @@ let package = Package(
     name: "UrBrowse",
     platforms: [.macOS(.v14)],
     products: [
-        // Shared Ur skeleton (pots, addressed requests, socket IPC, generic CLI). Other Ur apps
+        // Shared ur skeleton (pots, addressed requests, socket IPC, generic CLI). Other ur apps
         // (ur-mail, ur-notes) depend on this product.
         .library(name: "UrKit", targets: ["UrKit"]),
     ],

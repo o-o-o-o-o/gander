@@ -3,7 +3,7 @@ import Foundation
 import UrKit
 #endif
 
-/// The one definition of Ur Browse's command surface, shared by the app (URL-scheme routing,
+/// The one definition of urBrowse's command surface, shared by the app (URL-scheme routing,
 /// verb validation) and the CLI (pot-vs-verb disambiguation, usage). Adding a verb means
 /// adding it here and handling it in `BrowseCommand` — nowhere else.
 public enum BrowseSpec {
@@ -21,7 +21,7 @@ public enum BrowseSpec {
         bundleID: "io.ur.browse",
         appExecutable: "UrBrowse",
         devExecutable: "UrBrowseApp",
-        installedAppPath: "/Applications/Ur Browse.app",
+        installedAppPath: "/Applications/urBrowse.app",
         schemes: ["ur-browse", "gander"],
         verbs: verbs,
         booleanFlags: ["list"],

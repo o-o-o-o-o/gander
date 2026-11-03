@@ -29,7 +29,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             try server.start()
         } catch {
-            fputs("Ur Browse: \(error) — not starting a second copy of pot '\(pot.name)'\n", stderr)
+            fputs("urBrowse: \(error) — not starting a second copy of pot '\(pot.name)'\n", stderr)
             exit(0)
         }
         ipc = server
@@ -104,7 +104,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
         menu.delegate = self
-        let title = config.name == "default" ? "Ur Browse" : "Ur Browse — \(config.name)"
+        let title = config.name == "default" ? "urBrowse" : "urBrowse — \(config.name)"
 
         func item(_ t: String, _ sel: Selector, tag: Int = 0) -> NSMenuItem {
             let i = NSMenuItem(title: t, action: sel, keyEquivalent: "")
@@ -162,7 +162,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.messageText = "Hide Menu Bar Icon?"
         alert.informativeText = """
-            The Ur Browse icon will be removed from the menu bar.
+            The urBrowse icon will be removed from the menu bar.
 
             You can still use \(hotkey) to show or hide the sidebar. To restore the icon at any time, run:
                 ur-browse menubar
@@ -205,7 +205,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered, defer: false
         )
-        panel.title = name == "default" ? "Ur Browse Help" : "Ur Browse Help — \(name)"
+        panel.title = name == "default" ? "urBrowse Help" : "urBrowse Help — \(name)"
         panel.isReleasedWhenClosed = false
         panel.center()
 
@@ -362,7 +362,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                                                 defaultVerb: spec.defaultVerb) else { return }
         if request.pot == pot.name {
             handle(request) { response in
-                if !response.ok { fputs("Ur Browse: \(raw): \(response.error ?? "failed")\n", stderr) }
+                if !response.ok { fputs("urBrowse: \(raw): \(response.error ?? "failed")\n", stderr) }
             }
             return
         }
@@ -371,7 +371,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             if !target.isRunning {
                 guard autostart, let self else {
-                    fputs("Ur Browse: pot '\(target.name)' is not running (\(raw))\n", stderr)
+                    fputs("urBrowse: pot '\(target.name)' is not running (\(raw))\n", stderr)
                     return
                 }
                 self.launchPot(target)
@@ -380,9 +380,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             do {
                 let response = try IPCClient.send(request, to: target.socketURL)
-                if !response.ok { fputs("Ur Browse: \(raw): \(response.error ?? "failed")\n", stderr) }
+                if !response.ok { fputs("urBrowse: \(raw): \(response.error ?? "failed")\n", stderr) }
             } catch {
-                fputs("Ur Browse: pot '\(target.name)' did not answer (\(raw)): \(error)\n", stderr)
+                fputs("urBrowse: pot '\(target.name)' did not answer (\(raw)): \(error)\n", stderr)
             }
         }
     }
@@ -406,7 +406,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         cfg.activates = false
         cfg.arguments = ["--pot", target.name]
         NSWorkspace.shared.openApplication(at: bundle, configuration: cfg) { _, error in
-            if let error { fputs("Ur Browse: could not start pot '\(target.name)': \(error)\n", stderr) }
+            if let error { fputs("urBrowse: could not start pot '\(target.name)': \(error)\n", stderr) }
         }
     }
 }

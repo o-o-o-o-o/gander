@@ -28,7 +28,7 @@ bash scripts/bundle.sh "${BIN_DIR}" "${VERSION}"
 
 ZIP="UrBrowse-v${VERSION}.zip"
 rm -f "${ZIP}"
-ditto -c -k --keepParent "Ur Browse.app" "${ZIP}"
+ditto -c -k --keepParent "urBrowse.app" "${ZIP}"
 SHA=$(shasum -a 256 "${ZIP}" | awk '{print $1}')
 echo "✓ ${ZIP}"
 echo "  SHA256: ${SHA}"

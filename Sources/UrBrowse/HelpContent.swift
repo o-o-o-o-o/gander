@@ -91,16 +91,16 @@ enum HelpContent {
         <body>
 
         <div class="header">
-        <img src="greg.png" alt="Ur Browse" onerror="this.style.display='none'">
-        <h1>Ur Browse</h1>
+        <img src="greg.png" alt="urBrowse" onerror="this.style.display='none'">
+        <h1>urBrowse</h1>
         <p class="dim">Version \#(version) &middot; pot <code>\#(name)</code></p>
-        <p class="dim">Gander, the goose. First app of the Ur suite.</p>
+        <p class="dim">Gander, the goose. First app of the ur suite.</p>
         </div>
 
         <h2>Lexicon</h2>
         <table>
-        <tr><td>Ur</td><td>The suite. Addresses look like <code>&lt;app&gt;://&lt;pot&gt;/&lt;kind&gt;/&lt;id&gt;</code></td></tr>
-        <tr><td>clay</td><td>The app template (shared skeleton every Ur app is made from)</td></tr>
+        <tr><td>ur</td><td>The suite. Addresses look like <code>&lt;app&gt;://&lt;pot&gt;/&lt;kind&gt;/&lt;id&gt;</code></td></tr>
+        <tr><td>clay</td><td>The app template (shared skeleton every ur app is made from)</td></tr>
         <tr><td>pot</td><td>An instance: own config, slip, logins, socket, optional LaunchAgent</td></tr>
         <tr><td>throw</td><td>Create a pot</td></tr>
         <tr><td>glaze</td><td>A pot's look (hex color)</td></tr>

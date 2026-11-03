@@ -1,5 +1,5 @@
 #!/bin/bash
-# Assemble "Ur Browse.app" from already-built binaries. Shared by build.sh (local) and
+# Assemble "urBrowse.app" from already-built binaries. Shared by build.sh (local) and
 # scripts/build-release.sh (CI) so the bundle layout is defined in exactly one place.
 #
 # Usage: bash scripts/bundle.sh <swift-bin-dir> <version>
@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 
 BIN_DIR="${1:?Usage: bundle.sh <swift-bin-dir> <version>}"
 VERSION="${2:?Usage: bundle.sh <swift-bin-dir> <version>}"
-APP_NAME="Ur Browse"
+APP_NAME="urBrowse"
 APP_BUNDLE="${APP_NAME}.app"
 WORK="$(mktemp -d /tmp/ur-browse-bundle.XXXXXX)"
 trap 'rm -rf "${WORK}"' EXIT

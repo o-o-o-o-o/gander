@@ -92,7 +92,7 @@ class SidebarPanel: NSPanel, NSToolbarDelegate {
             if cmd && !shift && noExtra && ch == "]" { self.activeWebView?.goForward(); return nil }
             // Site cycling — no isKeyWindow guard, consistent with goBack/goForward above.
             // A local monitor only sees events while we're the active app, so this is already
-            // scoped to "Ur Browse frontmost".
+            // scoped to "urBrowse frontmost".
             // keyCode fallback (33/30) covers layouts where "[" / "]" aren't on those keys.
             if cmd && shift && noExtra && (ch == "[" || event.keyCode == 33) { self.prevSite(); return nil }
             if cmd && shift && noExtra && (ch == "]" || event.keyCode == 30) { self.nextSite(); return nil }

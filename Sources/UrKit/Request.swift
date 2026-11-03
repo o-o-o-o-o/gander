@@ -1,6 +1,6 @@
 import Foundation
 
-/// One addressed command for one pot of one Ur app: `<app> [pot] <verb> [args…] [--key value…]`.
+/// One addressed command for one pot of one ur app: `<app> [pot] <verb> [args…] [--key value…]`.
 ///
 /// Every control surface — CLI argv, `<scheme>://` URLs, and the socket wire format — parses
 /// into this single shape, so an app implements each verb exactly once.

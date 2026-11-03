@@ -3,7 +3,7 @@
 ## Local development
 
 ```bash
-make build        # compile + build "Ur Browse.app" in project dir
+make build        # compile + build "urBrowse.app" in project dir
 make run          # build + open immediately for manual testing
 make logic-test   # Swift unit tests (URL canonicalization, config, frame logic, site ids, slip, request parsing)
 make smoke-test   # end-to-end: launches an isolated pot, exercises the CLI + socket IPC
@@ -39,14 +39,14 @@ gh workflow run update-cask.yml --field version=v0.2.0
 
 ```
 Sources/
-  UrKit/            shared Ur skeleton: pots, addressed requests, Unix-socket IPC, generic CLI
+  UrKit/            shared ur skeleton: pots, addressed requests, Unix-socket IPC, generic CLI
   UrBrowseSpec/     BrowseSpec: the one verb list + usage shared by app and CLI
   UrBrowse/         main app (NSPanel + WKWebView + menu bar), target UrBrowseApp
   ur-browse-cli/    CLI tool (one line: UrCLI(BrowseSpec.spec).run(); talks to the pot's socket)
 Resources/
   greg.png         menubar icon source (white background removed at build time)
 scripts/
-  bundle.sh        assembles "Ur Browse.app"; shared by build.sh and build-release.sh
+  bundle.sh        assembles "urBrowse.app"; shared by build.sh and build-release.sh
   build-release.sh CI build: compiles, bundles .app, zips UrBrowse-vX.Y.Z.zip
   release.sh       tag + push to trigger a release
 Casks/

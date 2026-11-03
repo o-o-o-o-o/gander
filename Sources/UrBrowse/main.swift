@@ -20,7 +20,7 @@ while let arg = argv.first {
 }
 
 func die(_ message: String) -> Never {
-    fputs("Ur Browse: \(message)\n", stderr)
+    fputs("urBrowse: \(message)\n", stderr)
     exit(1)
 }
 
@@ -33,9 +33,9 @@ func migrateLegacyConfig(into pot: Pot) {
     do {
         try fm.createDirectory(at: pot.slipDirectory, withIntermediateDirectories: true)
         try fm.copyItem(atPath: legacy, toPath: pot.configURL.path)
-        fputs("Ur Browse: migrated \(legacy) → \(pot.configURL.path)\n", stderr)
+        fputs("urBrowse: migrated \(legacy) → \(pot.configURL.path)\n", stderr)
     } catch {
-        fputs("Ur Browse: could not migrate \(legacy): \(error)\n", stderr)
+        fputs("urBrowse: could not migrate \(legacy): \(error)\n", stderr)
     }
 }
 

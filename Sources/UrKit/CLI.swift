@@ -1,15 +1,15 @@
 import Foundation
 
-/// Everything an Ur app's CLI needs to know about its app. The CLI itself is generic:
+/// Everything an ur app's CLI needs to know about its app. The CLI itself is generic:
 /// `UrCLI(spec).run()` handles pot routing, the socket round-trip, output formats, and the
-/// pot-management verbs every Ur app shares (`pots`, `throw`, `start`, `help`).
+/// pot-management verbs every ur app shares (`pots`, `throw`, `start`, `help`).
 public struct UrAppSpec {
     public var app: String               // "browse" — pot paths, socket dir, LaunchAgent label
     public var command: String           // "ur-browse" — shown in messages
     public var bundleID: String          // "io.ur.browse"
     public var appExecutable: String     // executable name inside the .app ("UrBrowse")
     public var devExecutable: String     // SwiftPM product next to the CLI in .build ("UrBrowseApp")
-    public var installedAppPath: String  // "/Applications/Ur Browse.app"
+    public var installedAppPath: String  // "/Applications/urBrowse.app"
     public var schemes: Set<String>      // URL schemes the app accepts
     public var verbs: Set<String>        // verbs the app answers over the socket
     public var booleanFlags: Set<String> // options that take no value

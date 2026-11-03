@@ -1,10 +1,10 @@
-# Ur Browse — Claude Code Context
+# urBrowse — Claude Code Context
 
 ## What this is
 
-**Ur Browse** (nickname Gander, the goose) — a floating sidebar browser for macOS 14+ (NSPanel +
-WKWebView), the first app of the **Ur** suite (ur-mail and ur-notes will follow). App
-`Ur Browse.app`, CLI `ur-browse` (legacy alias `gander`), URL schemes `ur-browse://` and legacy
+**urBrowse** (nickname Gander, the goose) — a floating sidebar browser for macOS 14+ (NSPanel +
+WKWebView), the first app of the **ur** suite (ur-mail and ur-notes will follow). App
+`urBrowse.app`, CLI `ur-browse` (legacy alias `gander`), URL schemes `ur-browse://` and legacy
 `gander://`, bundle id `io.ur.browse`. Controlled by hotkeys, the CLI, and URLs. No Xcode project —
 built with `swift build` and shell scripts. The repo is being renamed `o-o-o-o-o/gander` →
 `o-o-o-o-o/ur-browse` (GitHub redirects).
@@ -13,7 +13,7 @@ built with `swift build` and shell scripts. The repo is being renamed `o-o-o-o-o
 
 Use these words in code, commit messages and docs. Never say "instance" — say **pot**.
 
-- **Ur** — the suite; address scheme `<app>://<pot>/<kind>/<id>`
+- **ur** — the suite; address scheme `<app>://<pot>/<kind>/<id>`
 - **clay** — the app template / source (UrKit + `UrAppSpec` is the reusable skeleton)
 - **pot** — an instance: own config, slip scripts, website data store (cookies/logins), socket,
   optional LaunchAgent. Folder: `~/.config/ur/browse/<pot>/{config.json,slip/}`
@@ -25,7 +25,7 @@ Use these words in code, commit messages and docs. Never say "instance" — say 
 ## Build & run locally
 
 ```bash
-bash publish.sh           # build + logic tests + smoke tests → "./Ur Browse.app" (repo root)
+bash publish.sh           # build + logic tests + smoke tests → "./urBrowse.app" (repo root)
 bash publish.sh --open    # same, then opens it
 bash logic-test.sh        # logic tests only
 bash smoke-test.sh        # needs bash build.sh first (uses .build/release/ur-browse)
@@ -52,18 +52,18 @@ Cask push has happened before (v0.1.5) if `main` was not pushed first. The relea
 ## Source layout
 
 ```
-Sources/UrKit/          shared Ur skeleton (Foundation only): Pot, Request/Response, IPC (Unix
+Sources/UrKit/          shared ur skeleton (Foundation only): Pot, Request/Response, IPC (Unix
                         socket), UrCLI + UrAppSpec (generic CLI: pots/throw/start/--json/--alfred)
-Sources/UrBrowseSpec/   BrowseSpec — the one verb list + usage text + UrAppSpec for Ur Browse
+Sources/UrBrowseSpec/   BrowseSpec — the one verb list + usage text + UrAppSpec for urBrowse
 Sources/UrBrowse/       app (target UrBrowseApp): AppDelegate (one dispatcher for socket + URL
                         requests), BrowseCommand (typed verbs + validation), SidebarPanel,
                         SiteStore (ids, URL matching), Slip, Replies (--json payloads), Config,
                         FrameLayout, SitePicker, FindBar, HelpContent, main.swift
 Sources/ur-browse-cli/  CLI (product ur-browse): just `UrCLI(BrowseSpec.spec).run()`
-scripts/bundle.sh       assembles "Ur Browse.app"; shared by build.sh and scripts/build-release.sh
+scripts/bundle.sh       assembles "urBrowse.app"; shared by build.sh and scripts/build-release.sh
 scripts/release.sh      tag + push + trigger GitHub Actions
 scripts/build-release.sh CI build: compile → bundle.sh → UrBrowse-vX.Y.Z.zip
-build.sh                local dev build → "./Ur Browse.app" (never copies to /Applications)
+build.sh                local dev build → "./urBrowse.app" (never copies to /Applications)
 logic-test.sh           single-module compile of UrKit + UrBrowseSpec + pure app files; no app launch
 smoke-test.sh           integration test: launches an isolated pot (temp config, socket, ephemeral data)
 Casks/ur-browse.rb      Homebrew Cask (version + SHA256 auto-updated by CI); cask_renames.json: gander → ur-browse
@@ -104,7 +104,7 @@ autostart come from UrKit. Add logic tests for the parser. Update README, HelpCo
   unless the logic test already compiles them. Keep source paths relative (absolute paths break in
   CI). New pure file → add it to the list in `logic-test.sh`.
 
-- The daily app is the **Homebrew install** at `/Applications/Ur Browse.app`. The repo-root
+- The daily app is the **Homebrew install** at `/Applications/urBrowse.app`. The repo-root
   `build.sh` output is **test-only** — never copy it over `/Applications`. The Cask symlinks both
   `ur-browse` and `gander` → `Contents/MacOS/ur-browse-cli`; if an old/incomplete local build
   overwrites the brew copy, those symlinks dangle and every external trigger (CLI, URL scheme,
@@ -124,7 +124,7 @@ autostart come from UrKit. Add logic tests for the parser. Update README, HelpCo
 ## Reference implementations
 
 `driceroland/Search` (github.com/driceroland/Search) — a comparable WKWebView-based macOS
-browser, more mature (2.3k+ stars). Worth checking for implementation ideas on problems Ur Browse
+browser, more mature (2.3k+ stars). Worth checking for implementation ideas on problems urBrowse
 shares with it: WKWebView configuration, window/panel behavior, IPC, release tooling. Already
 mined for the Shift-key fix above, pairing `canBecomeMain: false` with `canBecomeKey`, and the
 CSS-injection idiom used to hide scrollbars. See `learnings.md` for what was checked and what
