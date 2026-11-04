@@ -7,7 +7,7 @@ public struct UrAppSpec {
     public var app: String               // "browse" — pot paths, socket dir, LaunchAgent label
     public var command: String           // "ur-browse" — shown in messages
     public var bundleID: String          // "io.ur.browse"
-    public var appExecutable: String     // executable name inside the .app ("UrBrowse")
+    public var appExecutable: String     // executable name inside the .app ("ur-Browse")
     public var devExecutable: String     // SwiftPM product next to the CLI in .build ("UrBrowseApp")
     public var installedAppPath: String  // "/Applications/ur-Browse.app"
     public var schemes: Set<String>      // URL schemes the app accepts

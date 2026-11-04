@@ -19,7 +19,7 @@ public enum BrowseSpec {
         app: "browse",
         command: "ur-browse",
         bundleID: "io.ur.browse",
-        appExecutable: "UrBrowse",
+        appExecutable: "ur-Browse",
         devExecutable: "UrBrowseApp",
         installedAppPath: "/Applications/ur-Browse.app",
         schemes: ["ur-browse", "gander"],

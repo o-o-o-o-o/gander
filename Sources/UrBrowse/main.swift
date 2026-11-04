@@ -3,9 +3,9 @@ import UrBrowseSpec
 import UrKit
 
 // Launch forms:
-//   UrBrowse                     → the "default" pot
-//   UrBrowse --pot work          → ~/.config/ur/browse/work/config.json
-//   UrBrowse --config <path>     → explicit file; the pot is the file's "name" (smoke tests,
+//   ur-Browse                     → the "default" pot
+//   ur-Browse --pot work          → ~/.config/ur/browse/work/config.json
+//   ur-Browse --config <path>     → explicit file; the pot is the file's "name" (smoke tests,
 //                                  pre-rename LaunchAgents)
 var potName: String? = nil
 var configPath: String? = nil

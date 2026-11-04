@@ -80,7 +80,7 @@ SWIFT
 rm -rf "${APP_BUNDLE}"
 CONTENTS="${APP_BUNDLE}/Contents"
 mkdir -p "${CONTENTS}/MacOS" "${CONTENTS}/Resources"
-cp "${BIN_DIR}/UrBrowseApp" "${CONTENTS}/MacOS/UrBrowse"
+cp "${BIN_DIR}/UrBrowseApp" "${CONTENTS}/MacOS/ur-Browse"
 # ur-browse-cli powers the `ur-browse` CLI (and the legacy `gander` alias). The Homebrew Cask
 # symlinks both to Contents/MacOS/ur-browse-cli, so omitting it produces an app that looks
 # fine but silently breaks every external trigger (CLI, BetterTouchTool, Alfred).
@@ -93,7 +93,7 @@ cat > "${CONTENTS}/Info.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-    <key>CFBundleExecutable</key><string>UrBrowse</string>
+    <key>CFBundleExecutable</key><string>ur-Browse</string>
     <key>CFBundleIdentifier</key><string>io.ur.browse</string>
     <key>CFBundleName</key><string>${APP_NAME}</string>
     <key>CFBundleDisplayName</key><string>${APP_NAME}</string>
