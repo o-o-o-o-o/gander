@@ -2,8 +2,8 @@
 # frozen_string_literal: true
 
 cask "ur-browse" do
-  version "0.6.2"
-  sha256 "c0499643ff6495c3c0b8e8e39547f69bd61ac0d36b02f96be459d4ed2176bd8b"
+  version "0.6.3"
+  sha256 "c9be586f5daf880d3a1ebc1365e8216ab2a3e4737b696c149a187b7cd9ca737c"
 
   url "https://github.com/o-o-o-o-o/ur-browse/releases/download/v#{version}/UrBrowse-v#{version}.zip"
   name "ur-Browse"
