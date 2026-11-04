@@ -3,7 +3,7 @@
 ## Local development
 
 ```bash
-make build        # compile + build "urBrowse.app" in project dir
+make build        # compile + build "ur-Browse.app" in project dir
 make run          # build + open immediately for manual testing
 make logic-test   # Swift unit tests (URL canonicalization, config, frame logic, site ids, slip, request parsing)
 make smoke-test   # end-to-end: launches an isolated pot, exercises the CLI + socket IPC
@@ -46,7 +46,7 @@ Sources/
 Resources/
   greg.png         menubar icon source (white background removed at build time)
 scripts/
-  bundle.sh        assembles "urBrowse.app"; shared by build.sh and build-release.sh
+  bundle.sh        assembles "ur-Browse.app"; shared by build.sh and build-release.sh
   build-release.sh CI build: compiles, bundles .app, zips UrBrowse-vX.Y.Z.zip
   release.sh       tag + push to trigger a release
 Casks/

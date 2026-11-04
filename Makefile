@@ -6,11 +6,11 @@ build:
 	bash build.sh
 
 run:
-	bash build.sh && open "urBrowse.app"
+	bash build.sh && open "ur-Browse.app"
 
 install: build
-	@echo "✓ Local build: $(CURDIR)/urBrowse.app"
-	@echo '  Run: open "urBrowse.app"'
+	@echo "✓ Local build: $(CURDIR)/ur-Browse.app"
+	@echo '  Run: open "ur-Browse.app"'
 
 logic-test:
 	bash logic-test.sh

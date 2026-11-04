@@ -1,7 +1,7 @@
-# 🪿 urBrowse
+# 🪿 ur-Browse
 
 *Gander* as in "to take a gander" — a glimpse, a glance, a peek. *Gander* as in a goose.
-The goose and the nickname stay; the app is now **urBrowse**, the first app of the **ur** suite
+The goose and the nickname stay; the app is now **ur-Browse**, the first app of the **ur** suite
 (ur-mail and ur-notes will follow).
 
 A floatable, hot key-able, native sidebar browser (NSPanel + WKWebView) that persists across all
@@ -28,16 +28,16 @@ brew update && brew upgrade --cask ur-browse   # pull a new release
 
 The repo is being renamed `o-o-o-o-o/gander` → `o-o-o-o-o/ur-browse`; GitHub redirects the old
 URLs, so old taps and links keep working. Or download `UrBrowse-vX.Y.Z.zip` from
-[GitHub Releases](https://github.com/o-o-o-o-o/ur-browse/releases) and drag `urBrowse.app` to
+[GitHub Releases](https://github.com/o-o-o-o-o/ur-browse/releases) and drag `ur-Browse.app` to
 `/Applications`. Maintainer release steps: [RELEASE.md](RELEASE.md).
 
 The Cask installs two CLI names pointing at the same binary: `ur-browse` and the legacy `gander`.
 
-urBrowse is not signed with an Apple Developer certificate. The Cask strips the quarantine flag; if
+ur-Browse is not signed with an Apple Developer certificate. The Cask strips the quarantine flag; if
 macOS still blocks it:
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/urBrowse.app"
+xattr -dr com.apple.quarantine "/Applications/ur-Browse.app"
 # or: System Settings → Privacy & Security → Open Anyway
 ```
 
@@ -424,9 +424,9 @@ open -g "ur-browse://work/open?url=https://github.com&width=500"
 
 ```bash
 cd path/to/ur-browse
-bash publish.sh        # build, logic-test, smoke-test → "./urBrowse.app"
+bash publish.sh        # build, logic-test, smoke-test → "./ur-Browse.app"
 make publish           # same workflow, shorter entry point
-open "urBrowse.app"
+open "ur-Browse.app"
 ```
 
 Run a named pot from a dev build:

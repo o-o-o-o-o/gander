@@ -3,7 +3,7 @@ import Foundation
 import UrKit
 #endif
 
-/// Typed form of every verb urBrowse answers. `init(_:)` is the single place requests are
+/// Typed form of every verb ur-Browse answers. `init(_:)` is the single place requests are
 /// validated, whatever surface they came from (CLI, socket, `ur-browse://` URL), so a bad
 /// option fails the same way everywhere and the CLI gets a real non-zero exit.
 enum BrowseCommand: Equatable {

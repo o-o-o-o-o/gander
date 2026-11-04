@@ -91,8 +91,8 @@ enum HelpContent {
         <body>
 
         <div class="header">
-        <img src="greg.png" alt="urBrowse" onerror="this.style.display='none'">
-        <h1>urBrowse</h1>
+        <img src="greg.png" alt="ur-Browse" onerror="this.style.display='none'">
+        <h1>ur-Browse</h1>
         <p class="dim">Version \#(version) &middot; pot <code>\#(name)</code></p>
         <p class="dim">Gander, the goose. First app of the ur suite.</p>
         </div>

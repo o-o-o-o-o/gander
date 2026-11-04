@@ -36,7 +36,7 @@ else
     bash logic-test.sh
 fi
 
-echo "==> Packaging urBrowse.app (local: $(pwd)/urBrowse.app)"
+echo "==> Packaging ur-Browse.app (local: $(pwd)/ur-Browse.app)"
 bash build.sh
 
 if [ "$SKIP_SMOKE" = true ]; then
@@ -47,8 +47,8 @@ else
 fi
 
 if [ "$OPEN_APP" = true ]; then
-    echo "==> Opening urBrowse.app"
-    open "urBrowse.app"
+    echo "==> Opening ur-Browse.app"
+    open "ur-Browse.app"
 fi
 
 echo "==> Done"

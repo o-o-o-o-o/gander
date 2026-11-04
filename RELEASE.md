@@ -25,14 +25,14 @@ The Cask (`Casks/ur-browse.rb`) is updated automatically at the end of each rele
 
 1. Open [GitHub Releases](https://github.com/o-o-o-o-o/ur-browse/releases).
 2. Download `UrBrowse-vX.Y.Z.zip` for the version you want.
-3. Unzip and drag `urBrowse.app` to `/Applications` (replace the old copy).
+3. Unzip and drag `ur-Browse.app` to `/Applications` (replace the old copy).
 
 ### Gatekeeper (unsigned app)
 
-urBrowse is not notarized. After install or upgrade, macOS may block the first launch. Use **System Settings → Privacy & Security → Open Anyway**, or remove quarantine:
+ur-Browse is not notarized. After install or upgrade, macOS may block the first launch. Use **System Settings → Privacy & Security → Open Anyway**, or remove quarantine:
 
 ```bash
-xattr -cr "/Applications/urBrowse.app"
+xattr -cr "/Applications/ur-Browse.app"
 ```
 
 ---
@@ -56,7 +56,7 @@ xattr -cr "/Applications/urBrowse.app"
    bash publish.sh
    ```
 
-   Smoke-test the change with `open "urBrowse.app"` (repo root build) before tagging.
+   Smoke-test the change with `open "ur-Browse.app"` (repo root build) before tagging.
 
 4. **Pick a version** (semver pre-1.0: `0.x.y`):
 
